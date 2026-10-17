@@ -15,109 +15,6 @@ let workerTurnosCache = [];
 let recesoActivo = false;
 let tiempoRecesoInicio = null;
 
-// HISTORIAL HISTÓRICO PRECARGADO (05-10-2026 al 17-10-2026)
-const HISTORIAL_INICIAL_TURNO = [
-  // 17-10-2026 (Cierres de madrugada correspondientes al turno del 16)
-  { nombre: "Ronald", fecha: "2026-10-17", entrada: "2026-10-16T18:57:00", salida: "2026-10-17T00:02:00" },
-  { nombre: "Ricardo", fecha: "2026-10-17", entrada: "2026-10-16T15:38:00", salida: "2026-10-17T02:40:00" },
-  { nombre: "Lisander", fecha: "2026-10-17", entrada: "2026-10-16T11:00:00", salida: "2026-10-17T00:02:00" },
-  { nombre: "Daniel", fecha: "2026-10-17", entrada: "2026-10-16T18:37:00", salida: "2026-10-17T02:37:00" },
-
-  // 16-10-2026
-  { nombre: "Ronald", fecha: "2026-10-16", entrada: "2026-10-16T18:57:00", salida: "2026-10-17T00:02:00" },
-  { nombre: "Ricardo", fecha: "2026-10-16", entrada: "2026-10-16T15:38:00", salida: "2026-10-17T02:40:00" },
-  { nombre: "Betzaida", fecha: "2026-10-16", entrada: "2026-10-16T11:17:00", salida: "2026-10-16T18:13:00" },
-  { nombre: "Lisander", fecha: "2026-10-16", entrada: "2026-10-16T11:00:00", salida: "2026-10-17T00:02:00" },
-  { nombre: "Daniel", fecha: "2026-10-16", entrada: "2026-10-16T09:40:00", salida: "2026-10-16T12:16:00" },
-  { nombre: "Daniel", fecha: "2026-10-16", entrada: "2026-10-16T18:37:00", salida: "2026-10-17T02:37:00" },
-
-  // 15-10-2026
-  { nombre: "Ronald", fecha: "2026-10-15", entrada: "2026-10-15T17:22:00", salida: "2026-10-15T23:53:00" },
-  { nombre: "Gerson", fecha: "2026-10-15", entrada: "2026-10-15T17:09:00", salida: "2026-10-15T23:03:00" },
-  { nombre: "Ricardo", fecha: "2026-10-15", entrada: "2026-10-15T12:40:00", salida: "2026-10-16T03:03:00" },
-  { nombre: "Daniel", fecha: "2026-10-15", entrada: "2026-10-15T10:57:00", salida: "2026-10-16T03:02:00" },
-  { nombre: "Lisander", fecha: "2026-10-15", entrada: "2026-10-15T11:00:00", salida: "2026-10-16T00:00:00" },
-  { nombre: "Betzaida", fecha: "2026-10-15", entrada: "2026-10-15T11:23:00", salida: "2026-10-15T18:01:00" },
-  { nombre: "Planta", fecha: "2026-10-15", entrada: "2026-10-15T11:50:00", salida: "2026-10-15T17:50:00" },
-
-  // 14-10-2026
-  { nombre: "Ronald", fecha: "2026-10-14", entrada: "2026-10-14T17:52:00", salida: "2026-10-15T00:02:00" },
-  { nombre: "Ricardo", fecha: "2026-10-14", entrada: "2026-10-14T15:40:00", salida: "2026-10-15T02:58:00" },
-  { nombre: "Daniel", fecha: "2026-10-14", entrada: "2026-10-14T12:32:00", salida: "2026-10-14T18:02:00" },
-  { nombre: "Betzaida", fecha: "2026-10-14", entrada: "2026-10-14T12:32:00", salida: "2026-10-14T18:01:00" },
-  { nombre: "Lisander", fecha: "2026-10-14", entrada: "2026-10-14T12:00:00", salida: "2026-10-15T00:04:00" },
-
-  // 13-10-2026
-  { nombre: "Ronald", fecha: "2026-10-13", entrada: "2026-10-13T17:35:00", salida: "2026-10-14T00:10:00" },
-  { nombre: "Gerson", fecha: "2026-10-13", entrada: "2026-10-13T17:30:00", salida: "2026-10-13T23:13:00" },
-  { nombre: "Ricardo", fecha: "2026-10-13", entrada: "2026-10-13T16:30:00", salida: "2026-10-14T02:09:00" },
-  { nombre: "Lisander", fecha: "2026-10-13", entrada: "2026-10-13T10:59:00", salida: "2026-10-14T00:10:00" },
-  { nombre: "Betzaida", fecha: "2026-10-13", entrada: "2026-10-13T10:12:00", salida: "2026-10-13T18:03:00" },
-  { nombre: "Daniel", fecha: "2026-10-13", entrada: "2026-10-13T08:53:00", salida: "2026-10-13T18:01:00" },
-
-  // 12-10-2026
-  { nombre: "Planta", fecha: "2026-10-12", entrada: "2026-10-12T18:50:00", salida: "2026-10-12T23:55:00" },
-  { nombre: "Ronald", fecha: "2026-10-12", entrada: "2026-10-12T17:29:00", salida: "2026-10-12T23:21:00" },
-  { nombre: "Gerson", fecha: "2026-10-12", entrada: "2026-10-12T17:15:00", salida: "2026-10-12T23:01:00" },
-  { nombre: "Matias", fecha: "2026-10-12", entrada: "2026-10-12T15:22:00", salida: "2026-10-12T17:14:00" },
-  { nombre: "Ricardo", fecha: "2026-10-12", entrada: "2026-10-12T15:21:00", salida: "2026-10-13T03:12:00" },
-  { nombre: "Daniel", fecha: "2026-10-12", entrada: "2026-10-12T11:09:00", salida: "2026-10-13T03:02:00" },
-  { nombre: "Lisander", fecha: "2026-10-12", entrada: "2026-10-12T11:00:00", salida: "2026-10-13T00:02:00" },
-
-  // 11-10-2026
-  { nombre: "Matias", fecha: "2026-10-11", entrada: "2026-10-11T15:50:00", salida: "2026-10-11T19:54:00" },
-  { nombre: "Ricardo", fecha: "2026-10-11", entrada: "2026-10-11T15:32:00", salida: "2026-10-12T02:35:00" },
-  { nombre: "Lisander", fecha: "2026-10-11", entrada: "2026-10-11T11:45:00", salida: "2026-10-11T20:16:00" },
-  { nombre: "Ronald", fecha: "2026-10-11", entrada: "2026-10-11T10:20:00", salida: "2026-10-11T17:04:00" },
-  { nombre: "Daniel", fecha: "2026-10-11", entrada: "2026-10-11T10:14:00", salida: "2026-10-11T19:54:00" },
-  { nombre: "Betzaida", fecha: "2026-10-11", entrada: "2026-10-11T10:14:00", salida: "2026-10-11T19:57:00" },
-
-  // 10-10-2026
-  { nombre: "Matias", fecha: "2026-10-10", entrada: "2026-10-10T18:15:00", salida: "2026-10-10T23:30:00" },
-  { nombre: "Ricardo", fecha: "2026-10-10", entrada: "2026-10-10T16:30:00", salida: "2026-10-10T23:30:00" },
-  { nombre: "Ronald", fecha: "2026-10-10", entrada: "2026-10-10T14:02:00", salida: "2026-10-10T23:10:00" },
-  { nombre: "Betzaida", fecha: "2026-10-10", entrada: "2026-10-10T12:55:00", salida: "2026-10-10T17:30:00" },
-  { nombre: "Lisander", fecha: "2026-10-10", entrada: "2026-10-10T11:10:00", salida: "2026-10-10T23:30:00" },
-  { nombre: "Gerson", fecha: "2026-10-10", entrada: "2026-10-10T10:17:00", salida: "2026-10-10T17:16:00" },
-
-  // 09-10-2026
-  { nombre: "Ronald", fecha: "2026-10-09", entrada: "2026-10-09T15:53:00", salida: "2026-10-10T00:31:00" },
-  { nombre: "Ricardo", fecha: "2026-10-09", entrada: "2026-10-09T15:19:00", salida: "2026-10-10T02:35:00" },
-  { nombre: "Planta", fecha: "2026-10-09", entrada: "2026-10-09T11:40:00", salida: "2026-10-09T17:20:00" },
-  { nombre: "Lisander", fecha: "2026-10-09", entrada: "2026-10-09T11:00:00", salida: "2026-10-09T18:00:00" },
-  { nombre: "Betzaida", fecha: "2026-10-09", entrada: "2026-10-09T11:00:00", salida: "2026-10-09T17:47:00" },
-  { nombre: "Daniel", fecha: "2026-10-09", entrada: "2026-10-09T09:56:00", salida: "2026-10-10T02:35:00" },
-
-  // 08-10-2026
-  { nombre: "Gerson", fecha: "2026-10-08", entrada: "2026-10-08T17:39:00", salida: "2026-10-08T23:09:00" },
-  { nombre: "Ricardo", fecha: "2026-10-08", entrada: "2026-10-08T11:36:00", salida: "2026-10-09T02:26:00" },
-  { nombre: "Betzaida", fecha: "2026-10-08", entrada: "2026-10-08T11:03:00", salida: "2026-10-08T17:17:00" },
-  { nombre: "Lisander", fecha: "2026-10-08", entrada: "2026-10-08T10:59:00", salida: "2026-10-09T00:02:00" },
-  { nombre: "Daniel", fecha: "2026-10-08", entrada: "2026-10-08T09:13:00", salida: "2026-10-08T18:08:00" },
-
-  // 07-10-2026
-  { nombre: "Ronald", fecha: "2026-10-07", entrada: "2026-10-07T17:40:00", salida: "2026-10-07T23:58:00" },
-  { nombre: "Ricardo", fecha: "2026-10-07", entrada: "2026-10-07T15:09:00", salida: "2026-10-08T03:42:00" },
-  { nombre: "Betzaida", fecha: "2026-10-07", entrada: "2026-10-07T13:30:00", salida: "2026-10-07T17:43:00" },
-  { nombre: "Lisander", fecha: "2026-10-07", entrada: "2026-10-07T11:00:00", salida: "2026-10-08T00:01:00" },
-  { nombre: "Daniel", fecha: "2026-10-07", entrada: "2026-10-07T10:01:00", salida: "2026-10-08T03:16:00" },
-
-  // 06-10-2026
-  { nombre: "Gerson", fecha: "2026-10-06", entrada: "2026-10-06T17:59:00", salida: "2026-10-06T23:07:00" },
-  { nombre: "Ronald", fecha: "2026-10-06", entrada: "2026-10-06T17:52:00", salida: "2026-10-07T00:00:00" },
-  { nombre: "Ricardo", fecha: "2026-10-06", entrada: "2026-10-06T15:00:00", salida: "2026-10-07T02:42:00" },
-  { nombre: "Planta", fecha: "2026-10-06", entrada: "2026-10-06T12:40:00", salida: "2026-10-06T18:20:00" },
-  { nombre: "Brayan", fecha: "2026-10-06", entrada: "2026-10-06T11:15:00", salida: "2026-10-06T19:12:00" },
-  { nombre: "Lisander", fecha: "2026-10-06", entrada: "2026-10-06T11:00:00", salida: "2026-10-07T00:02:00" },
-  { nombre: "Daniel", fecha: "2026-10-06", entrada: "2026-10-06T08:54:00", salida: "2026-10-06T19:12:00" },
-
-  // 05-10-2026
-  { nombre: "Ronald", fecha: "2026-10-05", entrada: "2026-10-05T18:36:00", salida: "2026-10-06T00:01:00" },
-  { nombre: "Daniel", fecha: "2026-10-05", entrada: "2026-10-05T16:30:00", salida: "2026-10-06T03:24:00" },
-  { nombre: "Ricardo", fecha: "2026-10-05", entrada: "2026-10-05T13:15:00", salida: "2026-10-06T03:24:00" },
-  { nombre: "Lisander", fecha: "2026-10-05", entrada: "2026-10-05T12:00:00", salida: "2026-10-06T00:02:00" }
-];
-
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('matrix-canvas');
   if (!canvas) return;
@@ -162,8 +59,22 @@ async function login() {
     const { data: users, error } = await supabaseClient.from("usuarios").select("*");
     if (error) { alert("Error de base de datos: " + error.message); return; }
 
-    const user = users.find(u => (u.usuario || "").trim().toLowerCase() === uInput || (u.nombre || "").trim().toLowerCase() === uInput);
-    if (!user) { alert("El usuario '" + uInput + "' no existe."); return; }
+    if (!users || users.length === 0) {
+      alert("No hay usuarios registrados en la base de datos.");
+      return;
+    }
+
+    // Búsqueda flexible por nombre, usuario o id truncado
+    const user = users.find(u => {
+      const dbUser = (u.usuario || "").trim().toLowerCase();
+      const dbNombre = (u.nombre || "").trim().toLowerCase();
+      return dbUser === uInput || dbNombre === uInput || dbUser.includes(uInput) || dbNombre.includes(uInput);
+    });
+
+    if (!user) { 
+      alert("El usuario '" + uInput + "' no existe en el sistema."); 
+      return; 
+    }
 
     if (pInput === "1234" || pInput === String(user.pin).trim()) {
       currentUser = user;
@@ -431,51 +342,11 @@ function setWorkerShiftUI(enTurno) {
   }
 }
 
-async function seedHistorialInicial() {
-  const { data: users } = await supabaseClient.from("usuarios").select("id, nombre");
-  if (!users || users.length === 0) return;
-
-  const userMap = {};
-  users.forEach(u => { userMap[u.nombre.toLowerCase()] = u.id; });
-
-  const { data: existentes } = await supabaseClient.from("registros_turnos").select("id_usuario, fecha_inicio, hora_entrada").limit(5);
-  if (existentes && existentes.length > 0) return; // Ya tiene datos
-
-  let batch = [];
-  for (let item of HISTORIAL_INICIAL_TURNO) {
-    let uid = userMap[item.nombre.toLowerCase()];
-    if (uid) {
-      let tEntrada = new Date(item.entrada);
-      let tSalida = new Date(item.salida);
-      let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
-      if (diffHrs < 0) diffHrs += 24;
-
-      batch.push({
-        id_usuario: uid,
-        fecha_inicio: item.fecha,
-        hora_entrada: tEntrada.toISOString(),
-        hora_salida: tSalida.toISOString(),
-        horas_totales: diffHrs > 0 ? diffHrs.toFixed(2) : 0,
-        estado: "completado",
-        origen: "historico"
-      });
-    }
-  }
-
-  if (batch.length > 0) {
-    await supabaseClient.from("registros_turnos").insert(batch);
-  }
-}
-
 async function loadAdminData() {
   if (!supabaseClient) return;
   const { data: users, error } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
   if (error) { console.error("Error cargando usuarios:", error); return; }
   cachedUsers = users || [];
-
-  // Asegurar que el historial se siembra de forma automática si la base está vacía
-  await seedHistorialInicial();
-
   renderTablaUsuarios(cachedUsers);
   loadAsistenciasAdminConsolidado();
   calcularNomina();
