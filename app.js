@@ -12,7 +12,10 @@ let currentUser = null;
 let currentShift = null;
 let cachedUsers = [];
 let workerTurnosCache = [];
+let recesoActivo = false;
+let tiempoRecesoInicio = null;
 
+// EFECTO MATRIX EN MOVIMIENTO
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('matrix-canvas');
   if (!canvas) return;
@@ -29,24 +32,18 @@ window.addEventListener('DOMContentLoaded', () => {
   const fontSize = 14;
   let columns = canvas.width / fontSize;
   let drops = [];
-  for (let x = 0; x < columns; x++) {
-    drops[x] = 1;
-  }
+  for (let x = 0; x < columns; x++) { drops[x] = 1; }
 
   function drawMatrix() {
     ctx.fillStyle = 'rgba(3, 7, 18, 0.1)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     ctx.fillStyle = '#10b981';
     ctx.font = fontSize + 'px monospace';
 
     for (let i = 0; i < drops.length; i++) {
       const text = letters.charAt(Math.floor(Math.random() * letters.length));
       ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-
-      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-        drops[i] = 0;
-      }
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) { drops[i] = 0; }
       drops[i]++;
     }
   }
@@ -109,6 +106,7 @@ function initWorkerDates() {
   document.getElementById("w-filtro-desde").value = hace14;
 }
 
+// LOGICA VISTA TRABAJADOR
 async function loadWorkerData() {
   if (!supabaseClient || !currentUser) return;
 
@@ -129,41 +127,151 @@ async function loadWorkerData() {
 
   const turnosFiltrados = workerTurnosCache.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
 
+  // CONSOLIDAR POR DÍA (1 línea por fecha)
+  let diasAgrupados = {};
+  turnosFiltrados.forEach(t => {
+    const fecha = t.fecha_inicio;
+    if (!diasAgrupados[fecha]) {
+      diasAgrupados[fecha] = { primeraEntrada: t.hora_entrada, ultimaSalida: t.hora_salida, totalHoras: 0, turnosDia: [] };
+    }
+    diasAgrupados[fecha].turnosDia.push(t);
+    diasAgrupados[fecha].totalHoras += parseFloat(t.horas_totales || 0);
+    
+    // Actualizar primera entrada y última salida
+    if (new Date(t.hora_entrada) < new Date(diasAgrupados[fecha].primeraEntrada)) {
+      diasAgrupados[fecha].primeraEntrada = t.hora_entrada;
+    }
+    if (t.hora_salida && (!diasAgrupados[fecha].ultimaSalida || new Date(t.hora_salida) > new Date(diasAgrupados[fecha].ultimaSalida))) {
+      diasAgrupados[fecha].ultimaSalida = t.hora_salida;
+    }
+    if (t.estado === 'en_turno') {
+      diasAgrupados[fecha].ultimaSalida = null; // En curso
+    }
+  });
+
   let totalHorasPeriodo = 0;
   const tbody = document.getElementById("tabla-resumen-trabajador");
   tbody.innerHTML = "";
 
-  turnosFiltrados.forEach(t => {
-    const hrs = parseFloat(t.horas_totales || 0);
-    totalHorasPeriodo += hrs;
+  Object.keys(diasAgrupados).sort().reverse().forEach(fecha => {
+    const d = diasAgrupados[fecha];
+    totalHorasPeriodo += d.totalHoras;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${t.fecha_inicio}</strong></td>
-      <td>${t.hora_entrada ? new Date(t.hora_entrada).toLocaleTimeString() : '-'}</td>
-      <td>${t.estado === 'en_turno' ? '<span class="txt-green">En Curso</span>' : (t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : '-')}</td>
-      <td class="txt-green">${t.estado === 'en_turno' ? '-' : hrs.toFixed(2) + ' hrs'}</td>
-      <td><button onclick="verDetallesTurno(${t.id})" class="btn-action btn-gray">Ver Detalles</button></td>
+      <td><strong>${fecha}</strong></td>
+      <td>${d.primeraEntrada ? new Date(d.primeraEntrada).toLocaleTimeString() : '-'}</td>
+      <td>${!d.ultimaSalida ? '<span class="txt-green">En Curso</span>' : new Date(d.ultimaSalida).toLocaleTimeString()}</td>
+      <td class="txt-green">${d.totalHoras.toFixed(2)} hrs</td>
+      <td><button onclick='verDetallesDia("${fecha}", ${JSON.stringify(d.turnosDia)})' class="btn-action btn-gray">Ver Detalles</button></td>
     `;
     tbody.appendChild(tr);
   });
 
   document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
+
+  // Calcular simulador de cobro
+  let tarifa = parseFloat(currentUser.tarifa || 1.5);
+  let estimado = totalHorasPeriodo * tarifa;
+  if (currentUser.tipo_pago === 'Gasolina') estimado = totalHorasPeriodo * 1.4 * 0.5;
+  else if (currentUser.tipo_pago === 'Fijo') estimado = parseFloat(currentUser.tarifa || 300);
+
+  document.getElementById("w-monto-editable").value = estimado.toFixed(2);
 }
 
-function verDetallesTurno(id) {
-  const t = workerTurnosCache.find(item => item.id === id);
-  if (!t) return;
+function verDetallesDia(fecha, listaTurnos) {
+  document.getElementById("detalle-titulo").innerText = `Desglose de Turnos: ${fecha}`;
+  let html = `<p>Total de veces que inició / finalizó turno: <strong>${listaTurnos.length}</strong></p><hr style="border-color:#334155; margin:10px 0;">`;
+  
+  listaTurnos.forEach((t, index) => {
+    html += `
+      <div style="background:#1e293b; padding:8px; border-radius:6px; margin-bottom:8px;">
+        <small><strong>Sesión #${index + 1}</strong></small><br>
+        Entrada: ${new Date(t.hora_entrada).toLocaleTimeString()}<br>
+        Salida: ${t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : 'En curso'}<br>
+        Horas: <span class="txt-green">${t.horas_totales || 0} hrs</span>
+      </div>
+    `;
+  });
 
-  document.getElementById("detalle-titulo").innerText = `Turno del ${t.fecha_inicio}`;
-  document.getElementById("detalle-contenido").innerHTML = `
-    <p><strong>Estado:</strong> ${t.estado}</p>
-    <p><strong>Entrada:</strong> ${t.hora_entrada ? new Date(t.hora_entrada).toLocaleString() : '-'}</p>
-    <p><strong>Salida:</strong> ${t.hora_salida ? new Date(t.hora_salida).toLocaleString() : 'En curso'}</p>
-    <p><strong>Total Horas:</strong> <span class="txt-green">${t.horas_totales || 0} hrs</span></p>
-    <p><strong>Origen:</strong> ${t.origen || 'sistema'}</p>
-  `;
+  document.getElementById("detalle-contenido").innerHTML = html;
   document.getElementById("modal-detalles").classList.remove("hidden");
+}
+
+function confirmarToggleTurno() {
+  const enTurno = !!currentShift;
+  document.getElementById("confirm-title").innerText = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
+  document.getElementById("confirm-text").innerText = enTurno ? "Estás a punto de finalizar tu turno de asistencia." : "Estás a punto de iniciar un nuevo turno.";
+  document.getElementById("modal-confirm").classList.remove("hidden");
+}
+
+async function ejecutarToggleTurno() {
+  closeModals();
+  const now = new Date();
+  const dateStr = now.toISOString().split("T")[0];
+
+  if (!currentShift) {
+    await supabaseClient.from("registros_turnos").insert([{
+      id_usuario: currentUser.id,
+      fecha_inicio: dateStr,
+      hora_entrada: now.toISOString(),
+      estado: "en_turno",
+      origen: "sistema"
+    }]);
+  } else {
+    let entrada = new Date(currentShift.hora_entrada);
+    let diff = (now - entrada) / (1000 * 60 * 60);
+
+    // Descontar tiempo de receso si estuvo pausado
+    if (recesoActivo && tiempoRecesoInicio) {
+      const recesoMinutos = (now - tiempoRecesoInicio) / (1000 * 60);
+      diff -= (recesoMinutos / 60);
+      recesoActivo = false;
+      tiempoRecesoInicio = null;
+    }
+
+    await supabaseClient.from("registros_turnos").update({
+      hora_salida: now.toISOString(),
+      horas_totales: diff > 0 ? diff.toFixed(2) : 0,
+      estado: "completado"
+    }).eq("id", currentShift.id);
+  }
+  loadWorkerData();
+}
+
+function toggleReceso() {
+  if (!currentShift) {
+    alert("Debes iniciar turno primero para poder pausar en receso.");
+    return;
+  }
+  if (!recesoActivo) {
+    recesoActivo = true;
+    tiempoRecesoInicio = new Date();
+    alert("⏸ Receso iniciado. El tiempo de pausa se descontará al finalizar el turno y se reanudará al iniciar un nuevo turno.");
+  } else {
+    alert("▶ Receso finalizado. El turno continúa activo.");
+    recesoActivo = false;
+    tiempoRecesoInicio = null;
+  }
+}
+
+function openConfigPinModal() {
+  document.getElementById("nuevo-pin-input").value = "";
+  document.getElementById("modal-config-pin").classList.remove("hidden");
+}
+
+async function guardarNuevoPin() {
+  const nuevoPin = document.getElementById("nuevo-pin-input").value.trim();
+  if (!nuevoPin) { alert("Escribe un PIN válido."); return; }
+
+  const { error } = await supabaseClient.from("usuarios").update({ pin: nuevoPin }).eq("id", currentUser.id);
+  if (!error) {
+    alert("PIN actualizado con éxito.");
+    currentUser.pin = nuevoPin;
+    closeModals();
+  } else {
+    alert("Error al actualizar PIN: " + error.message);
+  }
 }
 
 function setWorkerShiftUI(enTurno) {
@@ -177,40 +285,11 @@ function setWorkerShiftUI(enTurno) {
   }
 }
 
-async function toggleTurno() {
-  const now = new Date();
-  const dateStr = now.toISOString().split("T")[0];
-
-  if (!currentShift) {
-    await supabaseClient.from("registros_turnos").insert([{
-      id_usuario: currentUser.id,
-      fecha_inicio: dateStr,
-      hora_entrada: now.toISOString(),
-      estado: "en_turno",
-      origen: "sistema"
-    }]);
-  } else {
-    const entrada = new Date(currentShift.hora_entrada);
-    const diff = (now - entrada) / (1000 * 60 * 60);
-    await supabaseClient.from("registros_turnos").update({
-      hora_salida: now.toISOString(),
-      horas_totales: diff.toFixed(2),
-      estado: "completado"
-    }).eq("id", currentShift.id);
-  }
-  loadWorkerData();
-}
-
-function toggleReceso() {
-  alert("Pausa / Receso registrado.");
-}
-
+// LOGICA VISTA ADMINISTRADOR
 async function loadAdminData() {
   if (!supabaseClient) return;
-
   const { data: users } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
   cachedUsers = users || [];
-
   renderTablaUsuarios(cachedUsers);
   loadAsistenciasAdmin();
   calcularNomina();
@@ -219,7 +298,6 @@ async function loadAdminData() {
 function renderTablaUsuarios(users) {
   const tbody = document.getElementById("tabla-usuarios");
   tbody.innerHTML = "";
-
   users.forEach(u => {
     let tarifaLabel = `$${u.tarifa || 1.5}`;
     if (u.tipo_pago === "Gasolina") tarifaLabel = "1.4L/h × $0.5";
