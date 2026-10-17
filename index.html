@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Control - Asistencia y Nómina</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary: #10b981;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 16px; }
+    .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+    h1, h2, h3 { color: var(--text); margin-bottom: 12px; }
+    input, select, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; }
+    button { background: var(--primary); font-weight: bold; cursor: pointer; border: none; margin-top: 16px; }
+    button:hover { opacity: 0.9; }
+    button.btn-danger { background: var(--danger); }
+    .hidden { display: none !important; }
+    .user-list, .history-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .item-row { background: #334155; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .badge-active { background: #059669; }
+    .badge-off { background: #64748b; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab-btn { background: #334155; color: white; padding: 8px; font-size: 14px; margin: 0; }
+    .tab-btn.active { background: var(--primary); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- HEADER -->
+  <div class="card" style="text-align: center;">
+    <h1>⏱️ Time Control</h1>
+    <p style="color: var(--text-muted); font-size: 14px;">Sistema de Asistencia y Nómina</p>
+  </div>
+
+  <!-- PANTALLA DE LOGIN -->
+  <div id="sec-login" class="card">
+    <h2>Iniciar Sesión</h2>
+    <label>Usuario</label>
+    <select id="login-usuario">
+      <option value="admin">Administrador</option>
+      <option value="ricardo">Ricardo</option>
+      <option value="ronald">Ronald</option>
+      <option value="lisander">Lisander</option>
+      <option value="daniel">Daniel</option>
+      <option value="betzaida">Betzaida</option>
+    </select>
+    <label style="margin-top:12px; display:block;">PIN de Acceso</label>
+    <input type="password" id="login-pin" placeholder="Ingresa tu PIN" maxlength="10">
+    <button onclick="login()">Entrar</button>
+  </div>
+
+  <!-- PANEL DE TRABAJADOR -->
+  <div id="sec-trabajador" class="card hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 id="worker-title">Bienvenido</h2>
+      <button onclick="logout()" style="width:auto; padding:6px 12px; margin:0;" class="btn-danger">Salir</button>
+    </div>
+    <div style="margin-top: 20px; text-align: center;">
+      <p>Estado Actual: <span id="worker-status" class="status-badge badge-off">Fuera de Turno</span></p>
+      <button id="btn-fichar" onclick="toggleTurno()" style="font-size:18px; padding:16px;">Iniciar Turno</button>
+    </div>
+    <h3 style="margin-top: 24px;">Mis Últimos Turnos</h3>
+    <div id="worker-history" class="history-list"></div>
+  </div>
+
+  <!-- PANEL DE ADMINISTRADOR -->
+  <div id="sec-admin" class="card hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Panel Administrador</h2>
+      <button onclick="logout()" style="width:auto; padding:6px 12px; margin:0;" class="btn-danger">Salir</button>
+    </div>
+
+    <div class="tabs" style="margin-top: 16px;">
+      <button class="tab-btn active" onclick="switchTab('tab-usuarios')">Usuarios</button>
+      <button class="tab-btn" onclick="switchTab('tab-horas')">Carga Manual</button>
+      <button class="tab-btn" onclick="switchTab('tab-reportes')">Reportes</button>
+    </div>
+
+    <!-- TAB USUARIOS -->
+    <div id="tab-usuarios">
+      <h3>Lista de Usuarios</h3>
+      <div id="admin-user-list" class="user-list"></div>
+      
+      <h3 style="margin-top:20px;">Agregar Nuevo Usuario</h3>
+      <input type="text" id="new-user-nombre" placeholder="Nombre completo">
+      <input type="text" id="new-user-username" placeholder="Nombre de usuario (ej: carlos)">
+      <input type="password" id="new-user-pin" placeholder="PIN de acceso (ej: 1234)">
+      <button onclick="crearUsuario()">Crear Usuario</button>
+    </div>
+
+    <!-- TAB CARGA MANUAL DE HORAS -->
+    <div id="tab-horas" class="hidden">
+      <h3>Importar / Registrar Horas Pasadas</h3>
+      <label>Trabajador</label>
+      <select id="import-usuario"></select>
+      
+      <label style="margin-top:8px; display:block;">Fecha</label>
+      <input type="date" id="import-fecha">
+      
+      <label style="margin-top:8px; display:block;">Hora Entrada</label>
+      <input type="time" id="import-hora-entrada" value="08:00">
+      
+      <label style="margin-top:8px; display:block;">Hora Salida</label>
+      <input type="time" id="import-hora-salida" value="17:00">
+
+      <button onclick="registrarHorasManuales()">Guardar Horas</button>
+    </div>
+
+    <!-- TAB REPORTES -->
+    <div id="tab-reportes" class="hidden">
+      <h3>Reporte de Nómina</h3>
+      <div id="admin-reports-list" class="history-list"></div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
