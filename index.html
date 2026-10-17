@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -182,7 +182,7 @@
     </div>
   </div>
 
-  <!-- MODAL: CONFIGURAR PIN (CON VALIDACIÓN DE ACTUAL) -->
+  <!-- MODAL: CONFIGURAR PIN -->
   <div id="modal-config-pin" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">⚙ Cambiar mi PIN de Acceso</h3>
@@ -267,14 +267,14 @@
   <div id="modal-config-tarifas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">⚙ Configuración Global de Tarifas</h3>
-      <p class="sub-title">Actualiza la tarifa por hora para todo el personal al mismo tiempo.</p>
+      <p class="sub-title">Actualiza la tarifa general (solo afecta a trabajadores con pago por hora, manteniendo tarifas individuales si se desea).</p>
       <div class="form-group" style="margin-top:15px;">
         <label>NUEVA TARIFA GENERAL ($ / HORA)</label>
         <input type="number" step="0.1" id="global-tarifa-input" value="1.5">
       </div>
       <div class="modal-actions">
         <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
-        <button onclick="aplicarTarifaGlobal()" class="btn-action btn-green">Aplicar a Todos</button>
+        <button onclick="aplicarTarifaGlobal()" class="btn-action btn-green">Aplicar a Todos (Horas)</button>
       </div>
     </div>
   </div>
@@ -308,6 +308,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
