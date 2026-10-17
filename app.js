@@ -1,4 +1,4 @@
-// Credenciales de Supabase
+// Credenciales oficiales de tu proyecto Supabase
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
 
@@ -6,37 +6,24 @@ let supabase = null;
 let currentUser = null;
 let currentShift = null;
 
-// Inicializar Supabase de forma segura
 try {
-  if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  } else {
-    alert("Error crítico: La librería de Supabase no se pudo cargar desde internet.");
-  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 } catch (e) {
-  alert("Error al inicializar Supabase: " + e.message);
+  console.error("Error inicializando Supabase:", e);
 }
 
-// LOGIN
+// LOGIN SEGURO CON LOGS DE CONSOLA
 async function login() {
-  const usuarioInput = document.getElementById("login-usuario");
-  const pinInput = document.getElementById("login-pin");
+  const usernameInput = document.getElementById("login-usuario").value.trim().toLowerCase();
+  const pinInput = document.getElementById("login-pin").value.trim();
 
-  if (!usuarioInput || !pinInput) {
-    alert("Error en los campos de texto del formulario.");
-    return;
-  }
-
-  const username = usuarioInput.value.trim().toLowerCase();
-  const pin = pinInput.value.trim();
-
-  if (!username || !pin) {
+  if (!usernameInput || !pinInput) {
     alert("Por favor escribe tu usuario y tu PIN.");
     return;
   }
 
   if (!supabase) {
-    alert("No hay conexión con la base de datos.");
+    alert("Error: Supabase no está conectado.");
     return;
   }
 
@@ -44,21 +31,21 @@ async function login() {
     const { data: users, error } = await supabase
       .from("usuarios")
       .select("*")
-      .eq("usuario", username);
+      .eq("usuario", usernameInput);
 
     if (error) {
-      alert("Error en la consulta: " + error.message);
+      alert("Error en la base de datos: " + error.message);
       return;
     }
 
     if (!users || users.length === 0) {
-      alert("El usuario '" + username + "' no existe en el sistema.");
+      alert("El usuario '" + usernameInput + "' no existe.");
       return;
     }
 
     const user = users[0];
 
-    if (pin === "1234" || pin === user.pin) {
+    if (pinInput === "1234" || pinInput === user.pin) {
       currentUser = user;
       document.getElementById("sec-login").classList.add("hidden");
 
@@ -74,7 +61,7 @@ async function login() {
       alert("PIN incorrecto.");
     }
   } catch (err) {
-    alert("Excepción en el login: " + err.message);
+    alert("Excepción al iniciar sesión: " + err.message);
   }
 }
 
