@@ -215,10 +215,13 @@ async function ejecutarToggleTurno() {
   } else {
     let entrada = new Date(currentShift.hora_entrada);
     let salida = now;
-    let diffMs = salida - entrada;
     
-    // CORRECCIÓN MEDIANOCHE: Si cruza al día siguiente (ej 2 PM a 2 AM), se calcula correctamente
+    let diffMs = salida - entrada;
     let diffHrs = diffMs / (1000 * 60 * 60);
+    
+    if (diffHrs < 0) {
+      diffHrs += 24; // Corrección cruce medianoche
+    }
 
     if (recesoActivo && tiempoRecesoInicio) {
       const recesoMinutos = (salida - tiempoRecesoInicio) / (1000 * 60);
@@ -296,7 +299,6 @@ function setWorkerShiftUI(enTurno) {
   }
 }
 
-// ADMIN DATA
 async function loadAdminData() {
   if (!supabaseClient) return;
   const { data: users } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
@@ -524,12 +526,11 @@ async function aplicarTarifaGlobal() {
   const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
   if (isNaN(nueva)) return;
 
-  // CORRECCIÓN TARIFA GLOBAL: Actualiza a todos los usuarios que tengan tipo_pago 'Horas' (insensible a mayúsculas)
   const { data: users } = await supabaseClient.from("usuarios").select("id, tipo_pago");
   
   for (let u of (users || [])) {
     const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
-    if (tipo === "horas") {
+    if (tipo !== "gasolina" && tipo !== "fijo") {
       await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
     }
   }
@@ -558,19 +559,17 @@ async function guardarHorasManuales() {
   let tEntrada = new Date(`${fecha}T${hEntrada}:00`);
   let tSalida = new Date(`${fecha}T${hSalida}:00`);
 
-  // CORRECCIÓN MANUELES MEDIANOCHE: Si la salida es menor que la entrada (ej 2 PM a 2 AM), pertenece al día siguiente en el reloj pero suma al día de inicio
-  if (tSalida <= tEntrada) {
-    tSalida.setDate(tSalida.getDate() + 1);
+  let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
+  if (diffHrs < 0) {
+    diffHrs += 24; // Corrección cruce medianoche en registros manuales
   }
-
-  const diff = (tSalida - tEntrada) / (1000 * 60 * 60);
 
   await supabaseClient.from("registros_turnos").insert([{
     id_usuario: userId,
     fecha_inicio: fecha,
     hora_entrada: tEntrada.toISOString(),
     hora_salida: tSalida.toISOString(),
-    horas_totales: diff > 0 ? diff.toFixed(2) : 0,
+    horas_totales: diffHrs > 0 ? diffHrs.toFixed(2) : 0,
     estado: "completado",
     origen: "manual"
   }]);
@@ -586,4 +585,4 @@ async function borrarTurno(id) {
     closeModals();
     loadAdminData();
   }
-} 
+}
