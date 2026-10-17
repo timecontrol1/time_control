@@ -338,19 +338,39 @@ async function loadAdminData() {
   calcularNomina();
 }
 
+function togglePinVisibility(id, btnId) {
+  const span = document.getElementById(id);
+  const btn = document.getElementById(btnId);
+  if (span.dataset.pin) {
+    if (span.textContent === "••••") {
+      span.textContent = span.dataset.pin;
+      btn.textContent = "👁️‍🗨️";
+    } else {
+      span.textContent = "••••";
+      btn.textContent = "👁️";
+    }
+  }
+}
+
 function renderTablaUsuarios(users) {
   const tbody = document.getElementById("tabla-usuarios");
   tbody.innerHTML = "";
-  users.forEach(u => {
+  users.forEach((u, index) => {
     let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : 1.5;
     let tarifaLabel = `$${tarifaVal}`;
     if (u.tipo_pago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
     else if (u.tipo_pago === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
 
+    const pinId = `pin-text-${index}`;
+    const btnId = `pin-btn-${index}`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${u.nombre}</strong></td>
-      <td>••••</td>
+      <td>
+        <span id="${pinId}" data-pin="${u.pin}">••••</span>
+        <button id="${btnId}" onclick="togglePinVisibility('${pinId}', '${btnId}')" class="btn-icon" style="margin-left:5px;" title="Ver PIN">👁️</button>
+      </td>
       <td>${u.tipo_pago || 'Horas'}</td>
       <td class="txt-green">${tarifaLabel}</td>
       <td>${u.cargo || 'Operaciones'}</td>
@@ -622,7 +642,6 @@ async function guardarUsuario() {
 
   if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
 
-  // Payload exacto sin romper la caché de esquemas de Supabase
   const payload = {
     nombre: nombre,
     usuario: usuario,
