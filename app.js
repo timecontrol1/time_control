@@ -66,23 +66,13 @@ async function login() {
       currentUser = user;
       document.getElementById("sec-login").classList.add("hidden");
 
-      if (user.rol === "admin") {
+      if (user.rol === "admin" || (user.tipo_pago || "").trim() === "Fijo") {
         document.getElementById("sec-admin").classList.remove("hidden");
         initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
         loadAdminData();
       } else {
         document.getElementById("sec-trabajador").classList.remove("hidden");
         document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
-        
-        // Si es el Administrador logueado como trabajador o un usuario fijo, ocultar botones de fichaje
-        if ((user.tipo_pago || "").trim() === "Fijo") {
-          document.getElementById("worker-controls-container").style.display = "none";
-          document.getElementById("card-tabla-worker-registros").style.display = "none";
-        } else {
-          document.getElementById("worker-controls-container").style.display = "grid";
-          document.getElementById("card-tabla-worker-registros").style.display = "block";
-        }
-
         initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
         loadWorkerData();
       }
@@ -190,7 +180,7 @@ async function loadWorkerData() {
     let d2 = new Date(hasta);
     let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
     let semanas = Math.max(1, diffDias / 7);
-    let montoFijoSemanal = parseFloat(currentUser.tarifa || 150);
+    let montoFijoSemanal = parseFloat(currentUser.tarifa || currentUser.monto_fijo || 150);
     let estimado = montoFijoSemanal * semanas;
     document.getElementById("w-total-periodo").innerText = `${semanas.toFixed(1)} semanas`;
     document.getElementById("w-monto-editable").value = estimado.toFixed(2);
@@ -249,7 +239,7 @@ async function ejecutarToggleTurno() {
     let diffHrs = diffMs / (1000 * 60 * 60);
     
     if (diffHrs < 0) {
-      diffHrs += 24; // Cruce medianoche
+      diffHrs += 24;
     }
 
     if (recesoActivo && tiempoRecesoInicio) {
@@ -343,9 +333,10 @@ function renderTablaUsuarios(users) {
   const tbody = document.getElementById("tabla-usuarios");
   tbody.innerHTML = "";
   users.forEach(u => {
-    let tarifaLabel = `$${u.tarifa || 1.5}`;
+    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : (u.monto_fijo !== undefined ? u.monto_fijo : 1.5);
+    let tarifaLabel = `$${tarifaVal}`;
     if (u.tipo_pago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
-    else if (u.tipo_pago === "Fijo") tarifaLabel = `$${u.tarifa || 150} / sem`;
+    else if (u.tipo_pago === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -375,19 +366,19 @@ function calcularNominaParaFechas(desde, hasta, turnos) {
     let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
     
     let totalPagar = 0;
-    let tarifaTexto = `$${u.tarifa || 1.5}`;
+    let baseTarifa = parseFloat(u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : (u.monto_fijo !== undefined ? u.monto_fijo : 150));
+    let tarifaTexto = `$${baseTarifa}`;
 
     if (u.tipo_pago === "Gasolina") {
       let litros = totalHoras * 1.4;
       totalPagar = litros * 0.50;
       tarifaTexto = `1.4L/h × $0.50 (${litros.toFixed(1)} L)`;
     } else if (u.tipo_pago === "Fijo") {
-      let montoBase = parseFloat(u.tarifa || 150);
-      totalPagar = montoBase * semanas;
-      tarifaTexto = `$${montoBase}/sem (${semanas.toFixed(1)} sem)`;
+      totalPagar = baseTarifa * semanas;
+      tarifaTexto = `$${baseTarifa}/sem (${semanas.toFixed(1)} sem)`;
     } else {
-      totalPagar = totalHoras * parseFloat(u.tarifa || 1.5);
-      tarifaTexto = `$${u.tarifa || 1.5}/h`;
+      totalPagar = totalHoras * baseTarifa;
+      tarifaTexto = `$${baseTarifa}/h`;
     }
 
     resumenList.push({
@@ -603,7 +594,7 @@ function openEditarUsuarioModal(id) {
   document.getElementById("edit-user-nombre").value = user.nombre;
   document.getElementById("edit-user-pin").value = user.pin;
   document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
-  document.getElementById("edit-user-tarifa").value = user.tarifa || 1.5;
+  document.getElementById("edit-user-tarifa").value = user.tarifa !== undefined && user.tarifa !== null ? user.tarifa : (user.monto_fijo !== undefined ? user.monto_fijo : 1.5);
   document.getElementById("edit-user-cargo").value = user.cargo || "Operaciones";
   document.getElementById("edit-user-rol").value = user.rol || "trabajador";
   actualizarLabelModalUsuario();
@@ -615,18 +606,30 @@ async function guardarUsuario() {
   const nombre = (document.getElementById("edit-user-nombre").value || "").trim();
   const pin = (document.getElementById("edit-user-pin").value || "").trim();
   const tipo_pago = document.getElementById("edit-user-tipo").value;
-  const tarifa = parseFloat(document.getElementById("edit-user-tarifa").value) || (tipo_pago === 'Fijo' ? 150 : 1.5);
+  const valTarifa = parseFloat(document.getElementById("edit-user-tarifa").value) || (tipo_pago === 'Fijo' ? 150 : 1.5);
   const cargo = document.getElementById("edit-user-cargo").value;
   const rol = document.getElementById("edit-user-rol").value;
   const usuario = nombre.toLowerCase().trim().replace(/\s+/g, '');
 
   if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
 
+  // Guardamos tanto en 'tarifa' como en 'monto_fijo' para asegurar compatibilidad con cualquier columna de Supabase
+  const payload = {
+    nombre: nombre,
+    usuario: usuario,
+    pin: pin,
+    tipo_pago: tipo_pago,
+    tarifa: valTarifa,
+    monto_fijo: valTarifa,
+    cargo: cargo,
+    rol: rol
+  };
+
   if (id) {
-    const { error } = await supabaseClient.from("usuarios").update({ nombre, pin, tipo_pago, tarifa, cargo, rol }).eq("id", id);
+    const { error } = await supabaseClient.from("usuarios").update(payload).eq("id", id);
     if (error) { alert("Error al actualizar: " + error.message); return; }
   } else {
-    const { error } = await supabaseClient.from("usuarios").insert([{ nombre, usuario, pin, tipo_pago, tarifa, cargo, rol }]);
+    const { error } = await supabaseClient.from("usuarios").insert([payload]);
     if (error) { alert("Error al registrar nuevo usuario: " + error.message); return; }
   }
 
@@ -655,7 +658,7 @@ async function aplicarTarifaGlobal() {
   for (let u of (users || [])) {
     const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
     if (tipo !== "gasolina" && tipo !== "fijo") {
-      await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
+      await supabaseClient.from("usuarios").update({ tarifa: nueva, monto_fijo: nueva }).eq("id", u.id);
     }
   }
 
@@ -685,7 +688,7 @@ async function guardarHorasManuales() {
 
   let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
   if (diffHrs < 0) {
-    diffHrs += 24; // Corrección cruce medianoche
+    diffHrs += 24; // Cruce de medianoche
   }
 
   const { error } = await supabaseClient.from("registros_turnos").insert([{
