@@ -13,7 +13,6 @@ let currentShift = null;
 let cachedUsers = [];
 let workerTurnosCache = [];
 
-// EFECTO MATRIX EN MOVIMIENTO (FONDO)
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('matrix-canvas');
   if (!canvas) return;
@@ -54,7 +53,6 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(drawMatrix, 33);
 });
 
-// LOGIN
 async function login() {
   const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
   const pInput = (document.getElementById("login-pin").value || "").trim();
@@ -111,7 +109,6 @@ function initWorkerDates() {
   document.getElementById("w-filtro-desde").value = hace14;
 }
 
-// LOGICA VISTA TRABAJADOR
 async function loadWorkerData() {
   if (!supabaseClient || !currentUser) return;
 
@@ -208,7 +205,6 @@ function toggleReceso() {
   alert("Pausa / Receso registrado.");
 }
 
-// LOGICA VISTA ADMINISTRADOR
 async function loadAdminData() {
   if (!supabaseClient) return;
 
@@ -310,7 +306,6 @@ async function loadAsistenciasAdmin() {
   });
 }
 
-// MODALES ADMIN
 function closeModals() {
   document.querySelectorAll(".modal-backdrop").forEach(m => m.classList.add("hidden"));
 }
