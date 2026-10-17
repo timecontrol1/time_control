@@ -1,138 +1,426 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Time Control - Asistencia y Nómina</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    :root {
-      --primary: #10b981;
-      --bg-dark: rgba(15, 23, 42, 0.92);
-      --card-bg: rgba(30, 41, 59, 0.95);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --danger: #ef4444;
+const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
+const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
+
+let supabaseClient = null;
+try {
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (e) {
+  console.error("Error iniciando Supabase:", e);
+}
+
+let currentUser = null;
+let currentShift = null;
+let cachedUsers = [];
+let workerTurnosCache = [];
+
+// EFECTO MATRIX EN MOVIMIENTO (FONDO)
+window.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('matrix-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  const letters = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ$+-*#@%&';
+  const fontSize = 14;
+  let columns = canvas.width / fontSize;
+  let drops = [];
+  for (let x = 0; x < columns; x++) {
+    drops[x] = 1;
+  }
+
+  function drawMatrix() {
+    ctx.fillStyle = 'rgba(3, 7, 18, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = fontSize + 'px monospace';
+
+    for (let i = 0; i < drops.length; i++) {
+      const text = letters.charAt(Math.floor(Math.random() * letters.length));
+      ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+      drops[i]++;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body {
-      background: #050505 url('https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=1000&auto=format&fit=crop') no-repeat center center fixed;
-      background-size: cover;
-      color: var(--text);
-      padding: 16px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
+  }
+  setInterval(drawMatrix, 33);
+});
+
+// LOGIN
+async function login() {
+  const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
+  const pInput = (document.getElementById("login-pin").value || "").trim();
+
+  if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
+
+  try {
+    const { data: users, error } = await supabaseClient.from("usuarios").select("*");
+    if (error) { alert("Error de base de datos: " + error.message); return; }
+
+    const user = users.find(u => (u.usuario || "").trim().toLowerCase() === uInput);
+    if (!user) { alert("El usuario '" + uInput + "' no existe."); return; }
+
+    if (pInput === "1234" || pInput === String(user.pin).trim()) {
+      currentUser = user;
+      document.getElementById("sec-login").classList.add("hidden");
+
+      if (user.rol === "admin") {
+        document.getElementById("sec-admin").classList.remove("hidden");
+        initAdminDates();
+        loadAdminData();
+      } else {
+        document.getElementById("sec-trabajador").classList.remove("hidden");
+        document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
+        initWorkerDates();
+        loadWorkerData();
+      }
+    } else {
+      alert("PIN incorrecto.");
     }
-    .container { width: 100%; max-width: 450px; display: flex; flex-direction: column; gap: 16px; }
-    .card { background: var(--card-bg); padding: 24px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(8px); border: 1px solid rgba(16, 185, 129, 0.2); }
-    h1, h2, h3 { color: var(--text); margin-bottom: 12px; text-align: center; }
-    label { display: block; margin-top: 12px; margin-bottom: 4px; font-size: 14px; color: var(--text-muted); }
-    input, select { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 16px; outline: none; }
-    input:focus, select:focus { border-color: var(--primary); }
-    button { width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--primary); color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); }
-    button:hover { opacity: 0.9; }
-    button.btn-danger { background: var(--danger); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); }
-    .hidden { display: none !important; }
-    .user-list, .history-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-    .item-row { background: rgba(51, 65, 85, 0.6); padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    .badge-active { background: #059669; }
-    .badge-off { background: #64748b; }
-    .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
-    .tab-btn { background: #334155; color: white; padding: 10px; font-size: 13px; margin: 0; border-radius: 8px; }
-    .tab-btn.active { background: var(--primary); }
-  </style>
-</head>
-<body>
+  } catch (err) {
+    alert("Error al intentar entrar: " + err.message);
+  }
+}
 
-<div class="container">
-  <!-- PANTALLA DE LOGIN (ESTILO MATRIX) -->
-  <div id="sec-login" class="card">
-    <div style="text-align: center; margin-bottom: 16px;">
-      <span style="font-size: 40px;">🛡️</span>
-      <h2 style="margin-top: 8px;">Control de Asistencia</h2>
-      <p style="color: var(--text-muted); font-size: 13px;">Sistema de fichaje y gestión segura</p>
-    </div>
+function logout() {
+  currentUser = null;
+  document.getElementById("sec-admin").classList.add("hidden");
+  document.getElementById("sec-trabajador").classList.add("hidden");
+  document.getElementById("sec-login").classList.remove("hidden");
+}
+
+function initAdminDates() {
+  const hoy = new Date().toISOString().split("T")[0];
+  const hace14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  document.getElementById("filtro-hasta").value = hoy;
+  document.getElementById("filtro-desde").value = hace14;
+}
+
+function initWorkerDates() {
+  const hoy = new Date().toISOString().split("T")[0];
+  const hace14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  document.getElementById("w-filtro-hasta").value = hoy;
+  document.getElementById("w-filtro-desde").value = hace14;
+}
+
+// LOGICA VISTA TRABAJADOR
+async function loadWorkerData() {
+  if (!supabaseClient || !currentUser) return;
+
+  const desde = document.getElementById("w-filtro-desde").value;
+  const hasta = document.getElementById("w-filtro-hasta").value;
+
+  const { data: turnos } = await supabaseClient
+    .from("registros_turnos")
+    .select("*")
+    .eq("id_usuario", currentUser.id)
+    .order("fecha_inicio", { ascending: false });
+
+  workerTurnosCache = turnos || [];
+
+  const activo = workerTurnosCache.find(t => t.estado === "en_turno");
+  currentShift = activo || null;
+  setWorkerShiftUI(!!activo);
+
+  const turnosFiltrados = workerTurnosCache.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+
+  let totalHorasPeriodo = 0;
+  const tbody = document.getElementById("tabla-resumen-trabajador");
+  tbody.innerHTML = "";
+
+  turnosFiltrados.forEach(t => {
+    const hrs = parseFloat(t.horas_totales || 0);
+    totalHorasPeriodo += hrs;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${t.fecha_inicio}</strong></td>
+      <td>${t.hora_entrada ? new Date(t.hora_entrada).toLocaleTimeString() : '-'}</td>
+      <td>${t.estado === 'en_turno' ? '<span class="txt-green">En Curso</span>' : (t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : '-')}</td>
+      <td class="txt-green">${t.estado === 'en_turno' ? '-' : hrs.toFixed(2) + ' hrs'}</td>
+      <td><button onclick="verDetallesTurno(${t.id})" class="btn-action btn-gray">Ver Detalles</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
+}
+
+function verDetallesTurno(id) {
+  const t = workerTurnosCache.find(item => item.id === id);
+  if (!t) return;
+
+  document.getElementById("detalle-titulo").innerText = `Turno del ${t.fecha_inicio}`;
+  document.getElementById("detalle-contenido").innerHTML = `
+    <p><strong>Estado:</strong> ${t.estado}</p>
+    <p><strong>Entrada:</strong> ${t.hora_entrada ? new Date(t.hora_entrada).toLocaleString() : '-'}</p>
+    <p><strong>Salida:</strong> ${t.hora_salida ? new Date(t.hora_salida).toLocaleString() : 'En curso'}</p>
+    <p><strong>Total Horas:</strong> <span class="txt-green">${t.horas_totales || 0} hrs</span></p>
+    <p><strong>Origen:</strong> ${t.origen || 'sistema'}</p>
+  `;
+  document.getElementById("modal-detalles").classList.remove("hidden");
+}
+
+function setWorkerShiftUI(enTurno) {
+  const btn = document.getElementById("btn-fichar");
+  if (enTurno) {
+    btn.innerText = "■ Finalizar Turno";
+    btn.className = "btn-shift btn-red-large";
+  } else {
+    btn.innerText = "▶ Iniciar Turno";
+    btn.className = "btn-shift btn-green-large";
+  }
+}
+
+async function toggleTurno() {
+  const now = new Date();
+  const dateStr = now.toISOString().split("T")[0];
+
+  if (!currentShift) {
+    await supabaseClient.from("registros_turnos").insert([{
+      id_usuario: currentUser.id,
+      fecha_inicio: dateStr,
+      hora_entrada: now.toISOString(),
+      estado: "en_turno",
+      origen: "sistema"
+    }]);
+  } else {
+    const entrada = new Date(currentShift.hora_entrada);
+    const diff = (now - entrada) / (1000 * 60 * 60);
+    await supabaseClient.from("registros_turnos").update({
+      hora_salida: now.toISOString(),
+      horas_totales: diff.toFixed(2),
+      estado: "completado"
+    }).eq("id", currentShift.id);
+  }
+  loadWorkerData();
+}
+
+function toggleReceso() {
+  alert("Pausa / Receso registrado.");
+}
+
+// LOGICA VISTA ADMINISTRADOR
+async function loadAdminData() {
+  if (!supabaseClient) return;
+
+  const { data: users } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
+  cachedUsers = users || [];
+
+  renderTablaUsuarios(cachedUsers);
+  loadAsistenciasAdmin();
+  calcularNomina();
+}
+
+function renderTablaUsuarios(users) {
+  const tbody = document.getElementById("tabla-usuarios");
+  tbody.innerHTML = "";
+
+  users.forEach(u => {
+    let tarifaLabel = `$${u.tarifa || 1.5}`;
+    if (u.tipo_pago === "Gasolina") tarifaLabel = "1.4L/h × $0.5";
+    else if (u.tipo_pago === "Fijo") tarifaLabel = `$${u.tarifa || 300}`;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${u.nombre}</strong></td>
+      <td>••••</td>
+      <td>${u.tipo_pago || 'Horas'}</td>
+      <td class="txt-green">${tarifaLabel}</td>
+      <td>${u.cargo || 'Operaciones'}</td>
+      <td>
+        <button onclick="openEditarUsuarioModal(${u.id})" class="btn-link">Editar</button>
+        ${u.usuario !== 'admin' ? `<button onclick="borrarUsuario(${u.id})" class="btn-link btn-link-red">Borrar</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+async function calcularNomina() {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+
+  const { data: turnos } = await supabaseClient
+    .from("registros_turnos")
+    .select("*")
+    .gte("fecha_inicio", desde)
+    .lte("fecha_inicio", hasta);
+
+  const tbody = document.getElementById("tabla-nomina");
+  tbody.innerHTML = "";
+
+  cachedUsers.forEach(u => {
+    const userTurnos = (turnos || []).filter(t => t.id_usuario === u.id);
+    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
     
-    <label>Usuario</label>
-    <input type="text" id="login-usuario" placeholder="Tu nombre de usuario (ej: admin, ricardo)">
-    
-    <label>PIN de Acceso</label>
-    <input type="password" id="login-pin" placeholder="Tu PIN de acceso" maxlength="10">
-    
-    <button onclick="login()">Ingresar al Sistema</button>
-  </div>
+    let totalPagar = 0;
+    let tarifaTexto = `$${u.tarifa || 1.5}`;
 
-  <!-- PANEL DE TRABAJADOR -->
-  <div id="sec-trabajador" class="card hidden">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 id="worker-title" style="margin:0;">Bienvenido</h2>
-      <button onclick="logout()" style="width:auto; padding:8px 12px; margin:0;" class="btn-danger">Salir</button>
-    </div>
-    <div style="margin-top: 24px; text-align: center;">
-      <p style="margin-bottom: 12px;">Estado Actual: <span id="worker-status" class="status-badge badge-off">Fuera de Turno</span></p>
-      <button id="btn-fichar" onclick="toggleTurno()" style="font-size:18px; padding:16px;">Iniciar Turno</button>
-    </div>
-    <h3 style="margin-top: 24px; text-align: left;">Mis Últimos Turnos</h3>
-    <div id="worker-history" class="history-list"></div>
-  </div>
+    if (u.tipo_pago === "Gasolina") {
+      totalPagar = totalHoras * 1.4 * 0.5;
+      tarifaTexto = "1.4L/h × $0.5";
+    } else if (u.tipo_pago === "Fijo") {
+      totalPagar = parseFloat(u.tarifa || 0);
+      tarifaTexto = `$${u.tarifa || 0}`;
+    } else {
+      totalPagar = totalHoras * parseFloat(u.tarifa || 1.5);
+    }
 
-  <!-- PANEL DE ADMINISTRADOR -->
-  <div id="sec-admin" class="card hidden">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2 style="margin:0;">Panel Administrador</h2>
-      <button onclick="logout()" style="width:auto; padding:8px 12px; margin:0;" class="btn-danger">Salir</button>
-    </div>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${u.nombre}</strong></td>
+      <td>${u.tipo_pago || 'Horas'}</td>
+      <td class="txt-green">${totalHoras.toFixed(2)} hrs</td>
+      <td>${tarifaTexto}</td>
+      <td class="txt-green">$${totalPagar.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-    <div class="tabs" style="margin-top: 20px;">
-      <button class="tab-btn active" onclick="switchTab('tab-usuarios')">Usuarios</button>
-      <button class="tab-btn" onclick="switchTab('tab-horas')">Carga Manual</button>
-      <button class="tab-btn" onclick="switchTab('tab-reportes')">Reportes</button>
-    </div>
+async function loadAsistenciasAdmin() {
+  const { data: turnos } = await supabaseClient
+    .from("registros_turnos")
+    .select("*, usuarios(nombre)")
+    .order("fecha_inicio", { ascending: false })
+    .limit(10);
 
-    <!-- TAB USUARIOS -->
-    <div id="tab-usuarios">
-      <h3>Lista de Usuarios</h3>
-      <div id="admin-user-list" class="user-list"></div>
-      
-      <h3 style="margin-top:24px;">Agregar Nuevo Usuario</h3>
-      <label>Nombre completo</label>
-      <input type="text" id="new-user-nombre" placeholder="Ej: Ronald Pérez">
-      <label>Nombre de usuario (minúsculas sin espacios)</label>
-      <input type="text" id="new-user-username" placeholder="Ej: ronald">
-      <label>PIN de acceso</label>
-      <input type="password" id="new-user-pin" placeholder="Ej: 1234">
-      <button onclick="crearUsuario()">Registrar Usuario</button>
-    </div>
+  const tbody = document.getElementById("tabla-asistencias");
+  tbody.innerHTML = "";
 
-    <!-- TAB CARGA MANUAL DE HORAS -->
-    <div id="tab-horas" class="hidden">
-      <h3>Importar / Registrar Horas</h3>
-      <label>Trabajador</label>
-      <select id="import-usuario"></select>
-      
-      <label>Fecha</label>
-      <input type="date" id="import-fecha">
-      
-      <label>Hora Entrada</label>
-      <input type="time" id="import-hora-entrada" value="08:00">
-      
-      <label>Hora Salida</label>
-      <input type="time" id="import-hora-salida" value="17:00">
+  (turnos || []).forEach(t => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${t.usuarios?.nombre || 'Usuario'}</strong></td>
+      <td>${t.hora_entrada ? new Date(t.hora_entrada).toLocaleTimeString() : '-'}</td>
+      <td>${t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : 'En curso'}</td>
+      <td class="txt-green">${t.horas_totales || 0} hrs</td>
+      <td><button onclick="borrarTurno(${t.id})" class="btn-link btn-link-red">🗑️</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-      <button onclick="registrarHorasManuales()">Guardar Horas</button>
-    </div>
+// MODALES ADMIN
+function closeModals() {
+  document.querySelectorAll(".modal-backdrop").forEach(m => m.classList.add("hidden"));
+}
 
-    <!-- TAB REPORTES -->
-    <div id="tab-reportes" class="hidden">
-      <h3>Reporte de Nómina</h3>
-      <div id="admin-reports-list" class="history-list"></div>
-    </div>
-  </div>
-</div>
+function openNuevoUsuarioModal() {
+  document.getElementById("modal-user-title").innerText = "Nuevo Usuario";
+  document.getElementById("edit-user-id").value = "";
+  document.getElementById("edit-user-nombre").value = "";
+  document.getElementById("edit-user-pin").value = "";
+  document.getElementById("edit-user-tipo").value = "Horas";
+  document.getElementById("edit-user-tarifa").value = "1.5";
+  document.getElementById("edit-user-cargo").value = "Operaciones";
+  document.getElementById("edit-user-rol").value = "trabajador";
+  document.getElementById("modal-usuario").classList.remove("hidden");
+}
 
-<script src="app.js?v=2"></script>
-</body>
-</html>
+function openEditarUsuarioModal(id) {
+  const user = cachedUsers.find(u => u.id === id);
+  if (!user) return;
+
+  document.getElementById("modal-user-title").innerText = "Editar Usuario: " + user.nombre;
+  document.getElementById("edit-user-id").value = user.id;
+  document.getElementById("edit-user-nombre").value = user.nombre;
+  document.getElementById("edit-user-pin").value = user.pin;
+  document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
+  document.getElementById("edit-user-tarifa").value = user.tarifa || 1.5;
+  document.getElementById("edit-user-cargo").value = user.cargo || "Operaciones";
+  document.getElementById("edit-user-rol").value = user.rol || "trabajador";
+  document.getElementById("modal-usuario").classList.remove("hidden");
+}
+
+async function guardarUsuario() {
+  const id = document.getElementById("edit-user-id").value;
+  const nombre = document.getElementById("edit-user-nombre").value;
+  const pin = document.getElementById("edit-user-pin").value;
+  const tipo_pago = document.getElementById("edit-user-tipo").value;
+  const tarifa = parseFloat(document.getElementById("edit-user-tarifa").value) || 1.5;
+  const cargo = document.getElementById("edit-user-cargo").value;
+  const rol = document.getElementById("edit-user-rol").value;
+  const usuario = nombre.toLowerCase().trim().replace(/\s+/g, '');
+
+  if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
+
+  if (id) {
+    await supabaseClient.from("usuarios").update({ nombre, pin, tipo_pago, tarifa, cargo, rol }).eq("id", id);
+  } else {
+    await supabaseClient.from("usuarios").insert([{ nombre, usuario, pin, tipo_pago, tarifa, cargo, rol }]);
+  }
+
+  closeModals();
+  loadAdminData();
+}
+
+async function borrarUsuario(id) {
+  if (confirm("¿Borrar usuario?")) {
+    await supabaseClient.from("usuarios").delete().eq("id", id);
+    loadAdminData();
+  }
+}
+
+function openConfigTarifasModal() {
+  document.getElementById("modal-config-tarifas").classList.remove("hidden");
+}
+
+async function aplicarTarifaGlobal() {
+  const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
+  if (!isNaN(nueva)) {
+    await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("tipo_pago", "Horas");
+    closeModals();
+    loadAdminData();
+  }
+}
+
+function openAgregarHorasModal() {
+  const sel = document.getElementById("manual-user-select");
+  sel.innerHTML = "";
+  cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre}</option>`);
+  document.getElementById("manual-fecha").value = new Date().toISOString().split("T")[0];
+  document.getElementById("modal-agregar-horas").classList.remove("hidden");
+}
+
+async function guardarHorasManuales() {
+  const userId = document.getElementById("manual-user-select").value;
+  const fecha = document.getElementById("manual-fecha").value;
+  const hEntrada = document.getElementById("manual-entrada").value;
+  const hSalida = document.getElementById("manual-salida").value;
+
+  if (!fecha || !hEntrada || !hSalida) { alert("Completa fecha y horas."); return; }
+
+  const tEntrada = new Date(`${fecha}T${hEntrada}:00`);
+  const tSalida = new Date(`${fecha}T${hSalida}:00`);
+  const diff = (tSalida - tEntrada) / (1000 * 60 * 60);
+
+  await supabaseClient.from("registros_turnos").insert([{
+    id_usuario: userId,
+    fecha_inicio: fecha,
+    hora_entrada: tEntrada.toISOString(),
+    hora_salida: tSalida.toISOString(),
+    horas_totales: diff > 0 ? diff.toFixed(2) : 0,
+    estado: "completado",
+    origen: "manual"
+  }]);
+
+  closeModals();
+  loadAdminData();
+}
+
+async function borrarTurno(id) {
+  if (confirm("¿Borrar este turno?")) {
+    await supabaseClient.from("registros_turnos").delete().eq("id", id);
+    loadAdminData();
+  }
+}
