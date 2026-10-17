@@ -1,19 +1,16 @@
-// Credenciales oficiales de tu proyecto Supabase
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
 
-// Inicialización limpia y directa de Supabase
 let supabaseClient = null;
 try {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 } catch (e) {
-  alert("Error al iniciar la librería de Supabase: " + e.message);
+  console.error("Error al iniciar Supabase:", e);
 }
 
 let currentUser = null;
 let currentShift = null;
 
-// LOGIN
 async function login() {
   const usuarioInput = document.getElementById("login-usuario").value.trim().toLowerCase();
   const pinInput = document.getElementById("login-pin").value.trim();
@@ -24,23 +21,24 @@ async function login() {
   }
 
   if (!supabaseClient) {
-    alert("Error: La conexión con la base de datos no está lista.");
+    alert("Error crítico: Supabase no está inicializado.");
     return;
   }
 
   try {
+    // Consulta directa a la tabla usuarios
     const { data: users, error } = await supabaseClient
       .from("usuarios")
       .select("*")
       .eq("usuario", usuarioInput);
 
     if (error) {
-      alert("Error en la consulta de usuarios: " + error.message);
+      alert("Error de Supabase: " + error.message);
       return;
     }
 
     if (!users || users.length === 0) {
-      alert("El usuario '" + usuarioInput + "' no existe en el sistema.");
+      alert("No se encontró el usuario en la base de datos.");
       return;
     }
 
@@ -62,7 +60,7 @@ async function login() {
       alert("PIN incorrecto.");
     }
   } catch (err) {
-    alert("Excepción al intentar entrar: " + err.message);
+    alert("Excepción en el login: " + err.message);
   }
 }
 
@@ -76,7 +74,6 @@ function logout() {
   document.getElementById("login-pin").value = "";
 }
 
-// TRABAJADOR
 async function loadWorkerData() {
   if (!supabaseClient || !currentUser) return;
   
@@ -180,7 +177,6 @@ async function toggleTurno() {
   loadWorkerData();
 }
 
-// ADMINISTRADOR
 async function loadAdminData() {
   if (!supabaseClient) return;
   const { data: users, error } = await supabaseClient.from("usuarios").select("*");
