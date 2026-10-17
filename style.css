@@ -16,10 +16,8 @@ body {
 
 #matrix-canvas {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
   z-index: -1;
   background: #030712;
 }
@@ -130,8 +128,7 @@ body {
   background: rgba(30, 41, 59, 0.8);
   color: #94a3b8;
   padding: 10px;
-  position: sticky;
-  top: 0;
+  position: sticky; top: 0;
 }
 
 .matrix-table td {
@@ -180,12 +177,13 @@ input, select {
 .filter-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .filter-row-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
 
-.total-badge {
+.simulador-cobro {
   background: rgba(30, 41, 59, 0.8);
   padding: 8px 14px;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: bold;
+  text-align: right;
 }
 
 .modal-backdrop {
