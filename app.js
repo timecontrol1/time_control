@@ -5,15 +5,18 @@ let supabaseClient = null;
 try {
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 } catch (e) {
-  console.error("Error al iniciar Supabase:", e);
+  console.error("Error iniciando Supabase:", e);
 }
 
 let currentUser = null;
 let currentShift = null;
 
 async function login() {
-  const usuarioInput = document.getElementById("login-usuario").value.trim().toLowerCase();
-  const pinInput = document.getElementById("login-pin").value.trim();
+  const usuarioRaw = document.getElementById("login-usuario").value;
+  const pinRaw = document.getElementById("login-pin").value;
+
+  const usuarioInput = (usuarioRaw || "").trim().toLowerCase();
+  const pinInput = (pinRaw || "").trim();
 
   if (!usuarioInput || !pinInput) {
     alert("Por favor escribe tu usuario y tu PIN.");
@@ -21,30 +24,35 @@ async function login() {
   }
 
   if (!supabaseClient) {
-    alert("Error crítico: Supabase no está inicializado.");
+    alert("Error de conexión con la base de datos.");
     return;
   }
 
   try {
-    // Consulta directa a la tabla usuarios
+    // Traemos los usuarios para validar directamente en el cliente
     const { data: users, error } = await supabaseClient
       .from("usuarios")
-      .select("*")
-      .eq("usuario", usuarioInput);
+      .select("*");
 
     if (error) {
-      alert("Error de Supabase: " + error.message);
+      alert("Error leyendo la base de datos: " + error.message);
       return;
     }
 
     if (!users || users.length === 0) {
-      alert("No se encontró el usuario en la base de datos.");
+      alert("La tabla de usuarios está vacía en Supabase.");
       return;
     }
 
-    const user = users[0];
+    // Buscamos coincidencia exacta ignorando espacios y mayúsculas
+    const user = users.find(u => (u.usuario || "").trim().toLowerCase() === usuarioInput);
 
-    if (pinInput === "1234" || pinInput === user.pin) {
+    if (!user) {
+      alert("El usuario '" + usuarioInput + "' no existe en el sistema.");
+      return;
+    }
+
+    if (pinInput === "1234" || pinInput === String(user.pin).trim()) {
       currentUser = user;
       document.getElementById("sec-login").classList.add("hidden");
 
@@ -60,7 +68,7 @@ async function login() {
       alert("PIN incorrecto.");
     }
   } catch (err) {
-    alert("Excepción en el login: " + err.message);
+    alert("Error inesperado: " + err.message);
   }
 }
 
