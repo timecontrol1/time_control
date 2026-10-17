@@ -73,6 +73,15 @@ async function login() {
       } else {
         document.getElementById("sec-trabajador").classList.remove("hidden");
         document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
+        
+        if ((user.tipo_pago || "").trim() === "Fijo") {
+          document.getElementById("worker-controls-container").style.display = "none";
+          document.getElementById("card-tabla-worker-registros").style.display = "none";
+        } else {
+          document.getElementById("worker-controls-container").style.display = "grid";
+          document.getElementById("card-tabla-worker-registros").style.display = "block";
+        }
+
         initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
         loadWorkerData();
       }
@@ -180,7 +189,7 @@ async function loadWorkerData() {
     let d2 = new Date(hasta);
     let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
     let semanas = Math.max(1, diffDias / 7);
-    let montoFijoSemanal = parseFloat(currentUser.tarifa || currentUser.monto_fijo || 150);
+    let montoFijoSemanal = parseFloat(currentUser.tarifa || 150);
     let estimado = montoFijoSemanal * semanas;
     document.getElementById("w-total-periodo").innerText = `${semanas.toFixed(1)} semanas`;
     document.getElementById("w-monto-editable").value = estimado.toFixed(2);
@@ -333,7 +342,7 @@ function renderTablaUsuarios(users) {
   const tbody = document.getElementById("tabla-usuarios");
   tbody.innerHTML = "";
   users.forEach(u => {
-    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : (u.monto_fijo !== undefined ? u.monto_fijo : 1.5);
+    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : 1.5;
     let tarifaLabel = `$${tarifaVal}`;
     if (u.tipo_pago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
     else if (u.tipo_pago === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
@@ -366,7 +375,7 @@ function calcularNominaParaFechas(desde, hasta, turnos) {
     let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
     
     let totalPagar = 0;
-    let baseTarifa = parseFloat(u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : (u.monto_fijo !== undefined ? u.monto_fijo : 150));
+    let baseTarifa = parseFloat(u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : 150);
     let tarifaTexto = `$${baseTarifa}`;
 
     if (u.tipo_pago === "Gasolina") {
@@ -594,7 +603,7 @@ function openEditarUsuarioModal(id) {
   document.getElementById("edit-user-nombre").value = user.nombre;
   document.getElementById("edit-user-pin").value = user.pin;
   document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
-  document.getElementById("edit-user-tarifa").value = user.tarifa !== undefined && user.tarifa !== null ? user.tarifa : (user.monto_fijo !== undefined ? user.monto_fijo : 1.5);
+  document.getElementById("edit-user-tarifa").value = user.tarifa !== undefined && user.tarifa !== null ? user.tarifa : 1.5;
   document.getElementById("edit-user-cargo").value = user.cargo || "Operaciones";
   document.getElementById("edit-user-rol").value = user.rol || "trabajador";
   actualizarLabelModalUsuario();
@@ -613,14 +622,13 @@ async function guardarUsuario() {
 
   if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
 
-  // Guardamos tanto en 'tarifa' como en 'monto_fijo' para asegurar compatibilidad con cualquier columna de Supabase
+  // Payload exacto sin romper la caché de esquemas de Supabase
   const payload = {
     nombre: nombre,
     usuario: usuario,
     pin: pin,
     tipo_pago: tipo_pago,
     tarifa: valTarifa,
-    monto_fijo: valTarifa,
     cargo: cargo,
     rol: rol
   };
@@ -658,7 +666,7 @@ async function aplicarTarifaGlobal() {
   for (let u of (users || [])) {
     const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
     if (tipo !== "gasolina" && tipo !== "fijo") {
-      await supabaseClient.from("usuarios").update({ tarifa: nueva, monto_fijo: nueva }).eq("id", u.id);
+      await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
     }
   }
 
