@@ -6,37 +6,54 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let currentShift = null;
 
-// LOGIN
+// LOGIN CON DIAGNÓSTICO
 async function login() {
-  const username = document.getElementById("login-usuario").value;
-  const pin = document.getElementById("login-pin").value;
+  const usernameInput = document.getElementById("login-usuario").value.trim().toLowerCase();
+  const pinInput = document.getElementById("login-pin").value.trim();
 
-  const { data: users, error } = await supabase
-    .from("usuarios")
-    .select("*")
-    .eq("usuario", username);
-
-  if (error || !users || users.length === 0) {
-    alert("Usuario no encontrado.");
+  if (!usernameInput || !pinInput) {
+    alert("Por favor ingresa tu usuario y tu PIN.");
     return;
   }
 
-  const user = users[0];
+  try {
+    // Consulta directa a Supabase
+    const { data: users, error } = await supabase
+      .from("usuarios")
+      .select("*")
+      .eq("usuario", usernameInput);
 
-  if (pin === "1234") {
-    currentUser = user;
-    document.getElementById("sec-login").classList.add("hidden");
-
-    if (user.rol === "admin") {
-      document.getElementById("sec-admin").classList.remove("hidden");
-      loadAdminData();
-    } else {
-      document.getElementById("sec-trabajador").classList.remove("hidden");
-      document.getElementById("worker-title").innerText = `Hola, ${user.nombre}`;
-      loadWorkerData();
+    if (error) {
+      alert("Error de conexión con Supabase:\n" + error.message);
+      console.error(error);
+      return;
     }
-  } else {
-    alert("PIN incorrecto.");
+
+    if (!users || users.length === 0) {
+      alert("El usuario '" + usernameInput + "' no existe en la base de datos.");
+      return;
+    }
+
+    const user = users[0];
+
+    // Validación de PIN
+    if (pinInput === "1234" || pinInput === user.pin) {
+      currentUser = user;
+      document.getElementById("sec-login").classList.add("hidden");
+
+      if (user.rol === "admin") {
+        document.getElementById("sec-admin").classList.remove("hidden");
+        loadAdminData();
+      } else {
+        document.getElementById("sec-trabajador").classList.remove("hidden");
+        document.getElementById("worker-title").innerText = `Hola, ${user.nombre}`;
+        loadWorkerData();
+      }
+    } else {
+      alert("PIN incorrecto para " + usernameInput);
+    }
+  } catch (err) {
+    alert("Error de ejecución: " + err.message);
   }
 }
 
@@ -46,6 +63,8 @@ function logout() {
   document.getElementById("sec-admin").classList.add("hidden");
   document.getElementById("sec-trabajador").classList.add("hidden");
   document.getElementById("sec-login").classList.remove("hidden");
+  document.getElementById("login-usuario").value = "";
+  document.getElementById("login-pin").value = "";
 }
 
 // TRABAJADOR
@@ -72,22 +91,23 @@ async function loadWorkerData() {
     .limit(5);
 
   const historyContainer = document.getElementById("worker-history");
-  historyContainer.innerHTML = "";
-
-  (history || []).forEach(shift => {
-    const item = document.createElement("div");
-    item.className = "item-row";
-    item.innerHTML = `
-      <div>
-        <strong>${shift.fecha_inicio}</strong><br>
-        <small>${shift.horas_totales || 0} hrs (${shift.origen})</small>
-      </div>
-      <span class="status-badge ${shift.estado === 'en_turno' ? 'badge-active' : 'badge-off'}">
-        ${shift.estado}
-      </span>
-    `;
-    historyContainer.appendChild(item);
-  });
+  if (historyContainer) {
+    historyContainer.innerHTML = "";
+    (history || []).forEach(shift => {
+      const item = document.createElement("div");
+      item.className = "item-row";
+      item.innerHTML = `
+        <div>
+          <strong>${shift.fecha_inicio}</strong><br>
+          <small>${shift.horas_totales || 0} hrs (${shift.origen})</small>
+        </div>
+        <span class="status-badge ${shift.estado === 'en_turno' ? 'badge-active' : 'badge-off'}">
+          ${shift.estado}
+        </span>
+      `;
+      historyContainer.appendChild(item);
+    });
+  }
 }
 
 function setShiftUI(active) {
@@ -147,22 +167,25 @@ async function loadAdminData() {
   
   const userList = document.getElementById("admin-user-list");
   const importSelect = document.getElementById("import-usuario");
-  userList.innerHTML = "";
-  importSelect.innerHTML = "";
+  
+  if (userList) userList.innerHTML = "";
+  if (importSelect) importSelect.innerHTML = "";
 
   (users || []).forEach(u => {
-    const div = document.createElement("div");
-    div.className = "item-row";
-    div.innerHTML = `
-      <div>
-        <strong>${u.nombre}</strong> (${u.usuario})<br>
-        <small>Rol: ${u.rol} | Tarifa: $${u.tarifa}/h</small>
-      </div>
-      ${u.usuario !== 'admin' ? `<button onclick="eliminarUsuario(${u.id})" class="btn-danger" style="width:auto; padding:4px 8px; margin:0;">Eliminar</button>` : ''}
-    `;
-    userList.appendChild(div);
+    if (userList) {
+      const div = document.createElement("div");
+      div.className = "item-row";
+      div.innerHTML = `
+        <div>
+          <strong>${u.nombre}</strong> (${u.usuario})<br>
+          <small>Rol: ${u.rol} | Tarifa: $${u.tarifa}/h</small>
+        </div>
+        ${u.usuario !== 'admin' ? `<button onclick="eliminarUsuario(${u.id})" class="btn-danger" style="width:auto; padding:4px 8px; margin:0;">Eliminar</button>` : ''}
+      `;
+      userList.appendChild(div);
+    }
 
-    if (u.rol !== 'admin') {
+    if (u.rol !== 'admin' && importSelect) {
       const opt = document.createElement("option");
       opt.value = u.id;
       opt.innerText = u.nombre;
@@ -175,8 +198,8 @@ async function loadAdminData() {
 
 async function crearUsuario() {
   const nombre = document.getElementById("new-user-nombre").value;
-  const username = document.getElementById("new-user-username").value.toLowerCase();
-  const pin = document.getElementById("new-user-pin").value;
+  const username = document.getElementById("new-user-username").value.toLowerCase().trim();
+  const pin = document.getElementById("new-user-pin").value.trim();
 
   if (!nombre || !username || !pin) {
     alert("Completa todos los campos");
@@ -186,7 +209,7 @@ async function crearUsuario() {
   const { error } = await supabase.from("usuarios").insert([{
     nombre: nombre,
     usuario: username,
-    pin: "$2b$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQOEg6Lruj3vjPGga31lW",
+    pin: pin,
     rol: "trabajador",
     tipo_pago: "por_hora",
     tarifa: 1.50
@@ -194,6 +217,9 @@ async function crearUsuario() {
 
   if (!error) {
     alert("Usuario creado exitosamente.");
+    document.getElementById("new-user-nombre").value = "";
+    document.getElementById("new-user-username").value = "";
+    document.getElementById("new-user-pin").value = "";
     loadAdminData();
   } else {
     alert("Error al crear usuario: " + error.message);
@@ -245,20 +271,21 @@ async function loadReports() {
     .order("fecha_inicio", { ascending: false });
 
   const reportsContainer = document.getElementById("admin-reports-list");
-  reportsContainer.innerHTML = "";
-
-  (records || []).forEach(r => {
-    const item = document.createElement("div");
-    item.className = "item-row";
-    item.innerHTML = `
-      <div>
-        <strong>${r.usuarios?.nombre || 'Usuario'}</strong> - ${r.fecha_inicio}<br>
-        <small>${r.horas_totales || 0} hrs (${r.origen})</small>
-      </div>
-      <span class="status-badge badge-active">$${((r.horas_totales || 0) * 1.5).toFixed(2)}</span>
-    `;
-    reportsContainer.appendChild(item);
-  });
+  if (reportsContainer) {
+    reportsContainer.innerHTML = "";
+    (records || []).forEach(r => {
+      const item = document.createElement("div");
+      item.className = "item-row";
+      item.innerHTML = `
+        <div>
+          <strong>${r.usuarios?.nombre || 'Usuario'}</strong> - ${r.fecha_inicio}<br>
+          <small>${r.horas_totales || 0} hrs (${r.origen})</small>
+        </div>
+        <span class="status-badge badge-active">$${((r.horas_totales || 0) * 1.5).toFixed(2)}</span>
+      `;
+      reportsContainer.appendChild(item);
+    });
+  }
 }
 
 function switchTab(tabId) {
@@ -267,4 +294,4 @@ function switchTab(tabId) {
   document.getElementById("tab-reportes").classList.add("hidden");
   
   document.getElementById(tabId).classList.remove("hidden");
-}
+    }
