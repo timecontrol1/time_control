@@ -4,13 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
   <canvas id="matrix-canvas"></canvas>
 
+  <!-- LOGIN -->
   <div id="sec-login" class="login-box glass-panel">
     <div class="shield-icon">🛡️</div>
     <h2>Control de Asistencia</h2>
@@ -24,6 +25,7 @@
     <button onclick="login()" class="btn-primary" style="width:100%; padding:10px; background:#10b981; border:none; border-radius:6px; font-weight:bold; cursor:pointer; color:#022c22;">Ingresar al Sistema</button>
   </div>
 
+  <!-- PANEL TRABAJADOR -->
   <div id="sec-trabajador" class="container hidden">
     <div class="admin-header glass-panel">
       <div>
@@ -31,13 +33,15 @@
         <p class="sub-title">Control personal de turnos y recesos</p>
       </div>
       <div class="header-actions">
-        <button onclick="loadWorkerData()" class="btn-action btn-refresh">🔄</button>
+        <button onclick="loadWorkerData()" class="btn-action btn-refresh" title="Actualizar">🔄</button>
+        <button onclick="openConfigPinModal()" class="btn-action btn-orange" title="Configurar PIN">⚙</button>
         <button onclick="logout()" class="btn-action btn-red">Cerrar Sesión</button>
       </div>
     </div>
 
+    <!-- BOTONES PRINCIPALES -->
     <div class="shift-buttons-row">
-      <button id="btn-fichar" onclick="toggleTurno()" class="btn-shift btn-green-large">
+      <button id="btn-fichar" onclick="confirmarToggleTurno()" class="btn-shift btn-green-large">
         ▶ Iniciar Turno
       </button>
       <button id="btn-receso" onclick="toggleReceso()" class="btn-shift btn-orange-large">
@@ -45,21 +49,24 @@
       </button>
     </div>
 
+    <!-- FILTRO RANGO Y SIMULADOR DE COBRO -->
     <div class="card-matrix glass-panel">
       <div class="filter-row-between">
         <div class="filter-row" style="margin-bottom:0;">
-          <label>📅 Rango (14 días):</label>
+          <label>📅 Rango:</label>
           <input type="date" id="w-filtro-desde">
           <span>a</span>
           <input type="date" id="w-filtro-hasta">
           <button onclick="loadWorkerData()" class="btn-action btn-green">Calcular</button>
         </div>
-        <div class="total-badge">
-          Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span>
+        <div class="simulador-cobro">
+          <div>Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span></div>
+          <div style="margin-top:4px;">Estimado a Cobrar: $<input type="number" id="w-monto-editable" value="0.00" step="0.1" style="width:80px; display:inline-block; padding:2px 5px; text-align:right;"></div>
         </div>
       </div>
     </div>
 
+    <!-- TABLA RESUMEN DIARIO CONSOLIDADO -->
     <div class="card-matrix glass-panel">
       <div class="card-header-title">Resumen Diario Consolidado</div>
       <div class="table-container">
@@ -79,6 +86,7 @@
     </div>
   </div>
 
+  <!-- PANEL ADMINISTRADOR -->
   <div id="sec-admin" class="container hidden">
     <div class="admin-header glass-panel">
       <div>
@@ -159,6 +167,34 @@
     </div>
   </div>
 
+  <!-- MODAL: CONFIRMACIÓN DE TURNO (SÍ / NO) -->
+  <div id="modal-confirm" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel" style="text-align:center;">
+      <h3 class="neon-title" id="confirm-title">¿Estás seguro?</h3>
+      <p id="confirm-text" style="margin: 15px 0; color:#cbd5e1;">¿Deseas registrar esta acción de asistencia?</p>
+      <div class="modal-actions" style="justify-content:center;">
+        <button onclick="closeModals()" class="btn-action btn-gray">No</button>
+        <button onclick="ejecutarToggleTurno()" class="btn-action btn-green">Sí, Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURAR PIN TRABAJADOR -->
+  <div id="modal-config-pin" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <h3 class="neon-title">⚙ Cambiar mi PIN de Acceso</h3>
+      <div class="form-group" style="margin-top:15px;">
+        <label>NUEVO PIN</label>
+        <input type="password" id="nuevo-pin-input" placeholder="Escribe tu nuevo PIN">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarNuevoPin()" class="btn-action btn-green">Guardar PIN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DETALLES DEL DÍA -->
   <div id="modal-detalles" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title" id="detalle-titulo">Detalles del Turno</h3>
@@ -169,6 +205,7 @@
     </div>
   </div>
 
+  <!-- MODAL EDITAR / CREAR USUARIO -->
   <div id="modal-usuario" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 id="modal-user-title" class="neon-title">Editar Usuario</h3>
@@ -215,6 +252,7 @@
     </div>
   </div>
 
+  <!-- MODAL TARIFA GLOBAL -->
   <div id="modal-config-tarifas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">⚙ Configuración Global de Tarifas</h3>
@@ -230,6 +268,7 @@
     </div>
   </div>
 
+  <!-- MODAL HORAS MANUALES -->
   <div id="modal-agregar-horas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">+ Agregar Horas Manuales</h3>
@@ -258,6 +297,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
