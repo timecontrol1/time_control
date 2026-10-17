@@ -1,43 +1,64 @@
 // Credenciales de Supabase
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+let supabase = null;
 let currentUser = null;
 let currentShift = null;
 
-// LOGIN CON DIAGNÓSTICO
-async function login() {
-  const usernameInput = document.getElementById("login-usuario").value.trim().toLowerCase();
-  const pinInput = document.getElementById("login-pin").value.trim();
+// Inicializar Supabase de forma segura
+try {
+  if (window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } else {
+    alert("Error crítico: La librería de Supabase no se pudo cargar desde internet.");
+  }
+} catch (e) {
+  alert("Error al inicializar Supabase: " + e.message);
+}
 
-  if (!usernameInput || !pinInput) {
-    alert("Por favor ingresa tu usuario y tu PIN.");
+// LOGIN
+async function login() {
+  const usuarioInput = document.getElementById("login-usuario");
+  const pinInput = document.getElementById("login-pin");
+
+  if (!usuarioInput || !pinInput) {
+    alert("Error en los campos de texto del formulario.");
+    return;
+  }
+
+  const username = usuarioInput.value.trim().toLowerCase();
+  const pin = pinInput.value.trim();
+
+  if (!username || !pin) {
+    alert("Por favor escribe tu usuario y tu PIN.");
+    return;
+  }
+
+  if (!supabase) {
+    alert("No hay conexión con la base de datos.");
     return;
   }
 
   try {
-    // Consulta directa a Supabase
     const { data: users, error } = await supabase
       .from("usuarios")
       .select("*")
-      .eq("usuario", usernameInput);
+      .eq("usuario", username);
 
     if (error) {
-      alert("Error de conexión con Supabase:\n" + error.message);
-      console.error(error);
+      alert("Error en la consulta: " + error.message);
       return;
     }
 
     if (!users || users.length === 0) {
-      alert("El usuario '" + usernameInput + "' no existe en la base de datos.");
+      alert("El usuario '" + username + "' no existe en el sistema.");
       return;
     }
 
     const user = users[0];
 
-    // Validación de PIN
-    if (pinInput === "1234" || pinInput === user.pin) {
+    if (pin === "1234" || pin === user.pin) {
       currentUser = user;
       document.getElementById("sec-login").classList.add("hidden");
 
@@ -50,10 +71,10 @@ async function login() {
         loadWorkerData();
       }
     } else {
-      alert("PIN incorrecto para " + usernameInput);
+      alert("PIN incorrecto.");
     }
   } catch (err) {
-    alert("Error de ejecución: " + err.message);
+    alert("Excepción en el login: " + err.message);
   }
 }
 
@@ -69,6 +90,8 @@ function logout() {
 
 // TRABAJADOR
 async function loadWorkerData() {
+  if (!supabase || !currentUser) return;
+  
   const { data: shifts } = await supabase
     .from("registros_turnos")
     .select("*")
@@ -113,6 +136,7 @@ async function loadWorkerData() {
 function setShiftUI(active) {
   const btn = document.getElementById("btn-fichar");
   const badge = document.getElementById("worker-status");
+  if (!btn || !badge) return;
 
   if (active) {
     btn.innerText = "Finalizar Turno";
@@ -128,6 +152,7 @@ function setShiftUI(active) {
 }
 
 async function toggleTurno() {
+  if (!supabase || !currentUser) return;
   const now = new Date();
   const dateStr = now.toISOString().split("T")[0];
 
@@ -140,34 +165,44 @@ async function toggleTurno() {
       origen: "sistema"
     }]).select();
 
-    if (!error) {
+    if (!error && data) {
       currentShift = data[0];
       setShiftUI(true);
+    } else {
+      alert("Error al iniciar turno: " + (error ? error.message : "Desconocido"));
     }
   } else {
     const entrada = new Date(currentShift.hora_entrada);
     const diffMs = now - entrada;
     const horas = (diffMs / (1000 * 60 * 60)).toFixed(2);
 
-    await supabase.from("registros_turnos").update({
+    const { error } = await supabase.from("registros_turnos").update({
       hora_salida: now.toISOString(),
       horas_totales: horas,
       estado: "completado"
     }).eq("id", currentShift.id);
 
-    currentShift = null;
-    setShiftUI(false);
+    if (!error) {
+      currentShift = null;
+      setShiftUI(false);
+    } else {
+      alert("Error al finalizar turno: " + error.message);
+    }
   }
   loadWorkerData();
 }
 
 // ADMINISTRADOR
 async function loadAdminData() {
-  const { data: users } = await supabase.from("usuarios").select("*");
+  if (!supabase) return;
+  const { data: users, error } = await supabase.from("usuarios").select("*");
+  if (error) {
+    alert("Error cargando usuarios: " + error.message);
+    return;
+  }
   
   const userList = document.getElementById("admin-user-list");
   const importSelect = document.getElementById("import-usuario");
-  
   if (userList) userList.innerHTML = "";
   if (importSelect) importSelect.innerHTML = "";
 
@@ -261,10 +296,13 @@ async function registrarHorasManuales() {
   if (!error) {
     alert("Horas registradas correctamente.");
     loadReports();
+  } else {
+    alert("Error guardando horas: " + error.message);
   }
 }
 
 async function loadReports() {
+  if (!supabase) return;
   const { data: records } = await supabase
     .from("registros_turnos")
     .select("*, usuarios(nombre)")
@@ -294,4 +332,4 @@ function switchTab(tabId) {
   document.getElementById("tab-reportes").classList.add("hidden");
   
   document.getElementById(tabId).classList.remove("hidden");
-    }
+}
