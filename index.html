@@ -4,15 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-  <!-- CANVAS FONDO MATRIX EN MOVIMIENTO -->
   <canvas id="matrix-canvas"></canvas>
 
-  <!-- LOGIN -->
   <div id="sec-login" class="login-box glass-panel">
     <div class="shield-icon">🛡️</div>
     <h2>Control de Asistencia</h2>
@@ -23,10 +21,9 @@
     <div class="form-group">
       <input type="password" id="login-pin" placeholder="PIN de Acceso" autocomplete="off">
     </div>
-    <button onclick="login()" class="btn-primary">Ingresar al Sistema</button>
+    <button onclick="login()" class="btn-primary" style="width:100%; padding:10px; background:#10b981; border:none; border-radius:6px; font-weight:bold; cursor:pointer; color:#022c22;">Ingresar al Sistema</button>
   </div>
 
-  <!-- PANEL TRABAJADOR -->
   <div id="sec-trabajador" class="container hidden">
     <div class="admin-header glass-panel">
       <div>
@@ -39,7 +36,6 @@
       </div>
     </div>
 
-    <!-- BOTONES PRINCIPALES -->
     <div class="shift-buttons-row">
       <button id="btn-fichar" onclick="toggleTurno()" class="btn-shift btn-green-large">
         ▶ Iniciar Turno
@@ -49,7 +45,6 @@
       </button>
     </div>
 
-    <!-- FILTRO RANGO Y TOTAL -->
     <div class="card-matrix glass-panel">
       <div class="filter-row-between">
         <div class="filter-row" style="margin-bottom:0;">
@@ -65,7 +60,6 @@
       </div>
     </div>
 
-    <!-- TABLA RESUMEN DIARIO CONSOLIDADO -->
     <div class="card-matrix glass-panel">
       <div class="card-header-title">Resumen Diario Consolidado</div>
       <div class="table-container">
@@ -85,7 +79,6 @@
     </div>
   </div>
 
-  <!-- PANEL ADMINISTRADOR -->
   <div id="sec-admin" class="container hidden">
     <div class="admin-header glass-panel">
       <div>
@@ -99,7 +92,6 @@
       </div>
     </div>
 
-    <!-- RESUMEN Y NÓMINA -->
     <div class="card-matrix glass-panel">
       <div class="card-header-title">📅 Resumen de Horas y Cálculo de Nómina (Quincenal / 14 días)</div>
       <div class="filter-row">
@@ -123,7 +115,6 @@
       </div>
     </div>
 
-    <!-- PERSONAL REGISTRADO -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Personal Registrado y Tarifas</span>
@@ -146,7 +137,6 @@
       </div>
     </div>
 
-    <!-- ASISTENCIAS EN TIEMPO REAL -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Asistencias en Tiempo Real (Ordenadas y con Horas)</span>
@@ -169,7 +159,6 @@
     </div>
   </div>
 
-  <!-- MODAL: DETALLES DEL DÍA -->
   <div id="modal-detalles" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title" id="detalle-titulo">Detalles del Turno</h3>
@@ -180,7 +169,6 @@
     </div>
   </div>
 
-  <!-- MODAL EDITAR / CREAR USUARIO -->
   <div id="modal-usuario" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 id="modal-user-title" class="neon-title">Editar Usuario</h3>
@@ -227,7 +215,6 @@
     </div>
   </div>
 
-  <!-- MODAL TARIFA GLOBAL -->
   <div id="modal-config-tarifas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">⚙ Configuración Global de Tarifas</h3>
@@ -243,7 +230,6 @@
     </div>
   </div>
 
-  <!-- MODAL HORAS MANUALES -->
   <div id="modal-agregar-horas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">+ Agregar Horas Manuales</h3>
@@ -272,6 +258,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
