@@ -2,44 +2,45 @@
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
 
-let supabase = null;
+// Inicialización limpia y directa de Supabase
+let supabaseClient = null;
+try {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (e) {
+  alert("Error al iniciar la librería de Supabase: " + e.message);
+}
+
 let currentUser = null;
 let currentShift = null;
 
-try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-} catch (e) {
-  console.error("Error inicializando Supabase:", e);
-}
-
-// LOGIN SEGURO CON LOGS DE CONSOLA
+// LOGIN
 async function login() {
-  const usernameInput = document.getElementById("login-usuario").value.trim().toLowerCase();
+  const usuarioInput = document.getElementById("login-usuario").value.trim().toLowerCase();
   const pinInput = document.getElementById("login-pin").value.trim();
 
-  if (!usernameInput || !pinInput) {
+  if (!usuarioInput || !pinInput) {
     alert("Por favor escribe tu usuario y tu PIN.");
     return;
   }
 
-  if (!supabase) {
-    alert("Error: Supabase no está conectado.");
+  if (!supabaseClient) {
+    alert("Error: La conexión con la base de datos no está lista.");
     return;
   }
 
   try {
-    const { data: users, error } = await supabase
+    const { data: users, error } = await supabaseClient
       .from("usuarios")
       .select("*")
-      .eq("usuario", usernameInput);
+      .eq("usuario", usuarioInput);
 
     if (error) {
-      alert("Error en la base de datos: " + error.message);
+      alert("Error en la consulta de usuarios: " + error.message);
       return;
     }
 
     if (!users || users.length === 0) {
-      alert("El usuario '" + usernameInput + "' no existe.");
+      alert("El usuario '" + usuarioInput + "' no existe en el sistema.");
       return;
     }
 
@@ -61,7 +62,7 @@ async function login() {
       alert("PIN incorrecto.");
     }
   } catch (err) {
-    alert("Excepción al iniciar sesión: " + err.message);
+    alert("Excepción al intentar entrar: " + err.message);
   }
 }
 
@@ -77,9 +78,9 @@ function logout() {
 
 // TRABAJADOR
 async function loadWorkerData() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
   
-  const { data: shifts } = await supabase
+  const { data: shifts } = await supabaseClient
     .from("registros_turnos")
     .select("*")
     .eq("id_usuario", currentUser.id)
@@ -93,7 +94,7 @@ async function loadWorkerData() {
     setShiftUI(false);
   }
 
-  const { data: history } = await supabase
+  const { data: history } = await supabaseClient
     .from("registros_turnos")
     .select("*")
     .eq("id_usuario", currentUser.id)
@@ -139,12 +140,12 @@ function setShiftUI(active) {
 }
 
 async function toggleTurno() {
-  if (!supabase || !currentUser) return;
+  if (!supabaseClient || !currentUser) return;
   const now = new Date();
   const dateStr = now.toISOString().split("T")[0];
 
   if (!currentShift) {
-    const { data, error } = await supabase.from("registros_turnos").insert([{
+    const { data, error } = await supabaseClient.from("registros_turnos").insert([{
       id_usuario: currentUser.id,
       fecha_inicio: dateStr,
       hora_entrada: now.toISOString(),
@@ -163,7 +164,7 @@ async function toggleTurno() {
     const diffMs = now - entrada;
     const horas = (diffMs / (1000 * 60 * 60)).toFixed(2);
 
-    const { error } = await supabase.from("registros_turnos").update({
+    const { error } = await supabaseClient.from("registros_turnos").update({
       hora_salida: now.toISOString(),
       horas_totales: horas,
       estado: "completado"
@@ -181,8 +182,8 @@ async function toggleTurno() {
 
 // ADMINISTRADOR
 async function loadAdminData() {
-  if (!supabase) return;
-  const { data: users, error } = await supabase.from("usuarios").select("*");
+  if (!supabaseClient) return;
+  const { data: users, error } = await supabaseClient.from("usuarios").select("*");
   if (error) {
     alert("Error cargando usuarios: " + error.message);
     return;
@@ -228,7 +229,7 @@ async function crearUsuario() {
     return;
   }
 
-  const { error } = await supabase.from("usuarios").insert([{
+  const { error } = await supabaseClient.from("usuarios").insert([{
     nombre: nombre,
     usuario: username,
     pin: pin,
@@ -250,7 +251,7 @@ async function crearUsuario() {
 
 async function eliminarUsuario(id) {
   if (confirm("¿Seguro que deseas eliminar este usuario?")) {
-    await supabase.from("usuarios").delete().eq("id", id);
+    await supabaseClient.from("usuarios").delete().eq("id", id);
     loadAdminData();
   }
 }
@@ -270,7 +271,7 @@ async function registrarHorasManuales() {
   const tSalida = new Date(`${fecha}T${hSalida}:00`);
   const diff = (tSalida - tEntrada) / (1000 * 60 * 60);
 
-  const { error } = await supabase.from("registros_turnos").insert([{
+  const { error } = await supabaseClient.from("registros_turnos").insert([{
     id_usuario: userId,
     fecha_inicio: fecha,
     hora_entrada: tEntrada.toISOString(),
@@ -289,8 +290,8 @@ async function registrarHorasManuales() {
 }
 
 async function loadReports() {
-  if (!supabase) return;
-  const { data: records } = await supabase
+  if (!supabaseClient) return;
+  const { data: records } = await supabaseClient
     .from("registros_turnos")
     .select("*, usuarios(nombre)")
     .order("fecha_inicio", { ascending: false });
