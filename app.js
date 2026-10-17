@@ -15,7 +15,6 @@ let workerTurnosCache = [];
 let recesoActivo = false;
 let tiempoRecesoInicio = null;
 
-// EFECTO MATRIX EN MOVIMIENTO
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('matrix-canvas');
   if (!canvas) return;
@@ -105,7 +104,6 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   document.getElementById(inputHastaId).value = domingo.toISOString().split("T")[0];
 }
 
-// LOGICA VISTA TRABAJADOR
 async function loadWorkerData() {
   if (!supabaseClient || !currentUser) return;
 
@@ -126,7 +124,6 @@ async function loadWorkerData() {
 
   const turnosFiltrados = workerTurnosCache.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
 
-  // REGLA DE MEDIA NOCHE: Las horas se suman estrictamente al día de inicio (fecha_inicio)
   let diasAgrupados = {};
   turnosFiltrados.forEach(t => {
     const fechaInicio = t.fecha_inicio;
@@ -168,7 +165,6 @@ async function loadWorkerData() {
 
   document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
 
-  // Simulador de cobro local independiente
   let tarifa = parseFloat(currentUser.tarifa || 1.5);
   let estimado = totalHorasPeriodo * tarifa;
   if (currentUser.tipo_pago === 'Gasolina') estimado = totalHorasPeriodo * 1.4 * 0.5;
@@ -187,7 +183,7 @@ function verDetallesDia(fecha, listaTurnos) {
         <small><strong>Sesión #${index + 1}</strong></small><br>
         Entrada: ${new Date(t.hora_entrada).toLocaleTimeString()}<br>
         Salida: ${t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : 'En curso'}<br>
-        Horas asignadas a este día: <span class="txt-green">${t.horas_totales || 0} hrs</span>
+        Horas: <span class="txt-green">${t.horas_totales || 0} hrs</span>
       </div>
     `;
   });
@@ -211,25 +207,29 @@ async function ejecutarToggleTurno() {
   if (!currentShift) {
     await supabaseClient.from("registros_turnos").insert([{
       id_usuario: currentUser.id,
-      fecha_inicio: dateStr, // Se fija la fecha del día de inicio
+      fecha_inicio: dateStr,
       hora_entrada: now.toISOString(),
       estado: "en_turno",
       origen: "sistema"
     }]);
   } else {
     let entrada = new Date(currentShift.hora_entrada);
-    let diff = (now - entrada) / (1000 * 60 * 60);
+    let salida = now;
+    let diffMs = salida - entrada;
+    
+    // CORRECCIÓN MEDIANOCHE: Si cruza al día siguiente (ej 2 PM a 2 AM), se calcula correctamente
+    let diffHrs = diffMs / (1000 * 60 * 60);
 
     if (recesoActivo && tiempoRecesoInicio) {
-      const recesoMinutos = (now - tiempoRecesoInicio) / (1000 * 60);
-      diff -= (recesoMinutos / 60);
+      const recesoMinutos = (salida - tiempoRecesoInicio) / (1000 * 60);
+      diffHrs -= (recesoMinutos / 60);
       recesoActivo = false;
       tiempoRecesoInicio = null;
     }
 
     await supabaseClient.from("registros_turnos").update({
-      hora_salida: now.toISOString(),
-      horas_totales: diff > 0 ? diff.toFixed(2) : 0,
+      hora_salida: salida.toISOString(),
+      horas_totales: diffHrs > 0 ? diffHrs.toFixed(2) : 0,
       estado: "completado"
     }).eq("id", currentShift.id);
   }
@@ -237,10 +237,7 @@ async function ejecutarToggleTurno() {
 }
 
 function toggleReceso() {
-  if (!currentShift) {
-    alert("Debes iniciar turno primero.");
-    return;
-  }
+  if (!currentShift) { alert("Debes iniciar turno primero."); return; }
   const btnReceso = document.getElementById("btn-receso");
   if (!recesoActivo) {
     recesoActivo = true;
@@ -299,7 +296,7 @@ function setWorkerShiftUI(enTurno) {
   }
 }
 
-// LOGICA VISTA ADMINISTRADOR
+// ADMIN DATA
 async function loadAdminData() {
   if (!supabaseClient) return;
   const { data: users } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
@@ -525,13 +522,21 @@ function openConfigTarifasModal() {
 
 async function aplicarTarifaGlobal() {
   const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
-  if (!isNaN(nueva)) {
-    // Aplica la tarifa general únicamente a los que cobran por horas, respetando tarifas individuales si se desea o actualizando la base
-    await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("tipo_pago", "Horas");
-    closeModals();
-    loadAdminData();
-    alert("Tarifa general actualizada con éxito para el personal por hora.");
+  if (isNaN(nueva)) return;
+
+  // CORRECCIÓN TARIFA GLOBAL: Actualiza a todos los usuarios que tengan tipo_pago 'Horas' (insensible a mayúsculas)
+  const { data: users } = await supabaseClient.from("usuarios").select("id, tipo_pago");
+  
+  for (let u of (users || [])) {
+    const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
+    if (tipo === "horas") {
+      await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
+    }
   }
+
+  closeModals();
+  loadAdminData();
+  alert("Tarifa general aplicada con éxito a todo el personal por hora.");
 }
 
 function openAgregarHorasModal() {
@@ -550,8 +555,14 @@ async function guardarHorasManuales() {
 
   if (!fecha || !hEntrada || !hSalida) { alert("Completa fecha y horas."); return; }
 
-  const tEntrada = new Date(`${fecha}T${hEntrada}:00`);
-  const tSalida = new Date(`${fecha}T${hSalida}:00`);
+  let tEntrada = new Date(`${fecha}T${hEntrada}:00`);
+  let tSalida = new Date(`${fecha}T${hSalida}:00`);
+
+  // CORRECCIÓN MANUELES MEDIANOCHE: Si la salida es menor que la entrada (ej 2 PM a 2 AM), pertenece al día siguiente en el reloj pero suma al día de inicio
+  if (tSalida <= tEntrada) {
+    tSalida.setDate(tSalida.getDate() + 1);
+  }
+
   const diff = (tSalida - tEntrada) / (1000 * 60 * 60);
 
   await supabaseClient.from("registros_turnos").insert([{
@@ -566,6 +577,7 @@ async function guardarHorasManuales() {
 
   closeModals();
   loadAdminData();
+  alert("Horas registradas correctamente.");
 }
 
 async function borrarTurno(id) {
