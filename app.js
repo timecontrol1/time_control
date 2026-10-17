@@ -93,12 +93,23 @@ async function login() {
 
   if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
 
+  // 1. Acceso de rescate inmediato para Administrador
+  if ((uInput === "admin" || uInput === "administrador") && pInput === "1234") {
+    currentUser = { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" };
+    document.getElementById("sec-login").classList.add("hidden");
+    document.getElementById("sec-admin").classList.remove("hidden");
+    initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
+    loadAdminData();
+    return;
+  }
+
   await syncUsersFromSupabase();
 
+  // 2. Búsqueda flexible por usuario o por nombre
   const user = cachedUsers.find(u => {
     const dbUser = (u.usuario || "").toString().trim().toLowerCase();
     const dbNombre = (u.nombre || "").toString().trim().toLowerCase();
-    return dbUser === uInput || dbNombre === uInput;
+    return dbUser === uInput || dbNombre === uInput || (uInput === "admin" && (dbUser === "administrador" || u.rol === "admin"));
   });
 
   if (!user) { alert("El usuario '" + uInput + "' no existe en el sistema."); return; }
