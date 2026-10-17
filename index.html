@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -40,7 +40,7 @@
     </div>
 
     <!-- BOTONES PRINCIPALES -->
-    <div class="shift-buttons-row">
+    <div id="worker-controls-container" class="shift-buttons-row">
       <button id="btn-fichar" onclick="confirmarToggleTurno()" class="btn-shift btn-green-large">
         ▶ Iniciar Turno
       </button>
@@ -53,21 +53,21 @@
     <div class="card-matrix glass-panel">
       <div class="filter-row-between">
         <div class="filter-row" style="margin-bottom:0;">
-          <label>📅 Semana (L-D):</label>
+          <label>📅 Rango de Fechas:</label>
           <input type="date" id="w-filtro-desde">
           <span>a</span>
           <input type="date" id="w-filtro-hasta">
           <button onclick="loadWorkerData()" class="btn-action btn-green">Calcular</button>
         </div>
         <div class="simulador-cobro">
-          <div>Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span></div>
+          <div id="label-total-periodo">Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span></div>
           <div style="margin-top:4px;">Simulación Cobro: $<input type="number" id="w-monto-editable" value="0.00" step="0.1" style="width:75px; display:inline-block; padding:2px 5px; text-align:right;"></div>
         </div>
       </div>
     </div>
 
     <!-- TABLA RESUMEN DIARIO CONSOLIDADO -->
-    <div class="card-matrix glass-panel">
+    <div class="card-matrix glass-panel" id="card-tabla-worker-registros">
       <div class="card-header-title">Resumen Diario Consolidado</div>
       <div class="table-container">
         <table class="matrix-table">
@@ -76,7 +76,7 @@
               <th>Fecha</th>
               <th>Primera Entrada</th>
               <th>Última Salida</th>
-              <th>Total Horas Día</th>
+              <th>Total Horas / Consumo</th>
               <th>Acción</th>
             </tr>
           </thead>
@@ -114,9 +114,9 @@
           <thead>
             <tr>
               <th>Usuario</th>
-              <th>Tipo</th>
-              <th>Horas / Cant.</th>
-              <th>Tarifa</th>
+              <th>Tipo Pago</th>
+              <th>Horas / Semanas</th>
+              <th>Tarifa / Monto</th>
               <th>Total $</th>
             </tr>
           </thead>
@@ -138,7 +138,7 @@
               <th>Usuario</th>
               <th>PIN</th>
               <th>Pago</th>
-              <th>Tarifa</th>
+              <th>Tarifa / Monto</th>
               <th>Cargo / Área</th>
               <th>Acciones</th>
             </tr>
@@ -214,7 +214,7 @@
     </div>
   </div>
 
-  <!-- NUEVO MODAL: RESUMEN DE PAGO PARA SUPERIORES -->
+  <!-- MODAL: RESUMEN DE PAGO PARA SUPERIORES -->
   <div id="modal-resumen-pago" class="modal-backdrop hidden">
     <div class="modal-box glass-panel" style="max-width: 600px;">
       <h3 class="neon-title">📋 Resumen de Pago para Superiores</h3>
@@ -242,14 +242,14 @@
       <div class="form-row">
         <div class="form-group">
           <label>Tipo de Pago</label>
-          <select id="edit-user-tipo">
+          <select id="edit-user-tipo" onchange="actualizarLabelModalUsuario()">
             <option value="Horas">Horas</option>
-            <option value="Gasolina">Gasolina</option>
-            <option value="Fijo">Fijo</option>
+            <option value="Gasolina">Gasolina (Planta)</option>
+            <option value="Fijo">Fijo (Administrador)</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Tarifa ($) / Monto Fijo ($)</label>
+          <label id="lbl-tarifa-modal">Tarifa ($) / Monto ($)</label>
           <input type="number" step="0.1" id="edit-user-tarifa">
         </div>
       </div>
@@ -290,32 +290,32 @@
 
   <div id="modal-agregar-horas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
-      <h3 class="neon-title">+ Agregar Horas Manuales</h3>
+      <h3 class="neon-title">+ Agregar Horas / Turno Manual</h3>
       <div class="form-group">
         <label>Usuario</label>
         <select id="manual-user-select"></select>
       </div>
       <div class="form-group">
-        <label>Fecha</label>
+        <label>Fecha de Inicio</label>
         <input type="date" id="manual-fecha">
       </div>
       <div class="form-row">
         <div class="form-group">
           <label>Hora Entrada</label>
-          <input type="time" id="manual-entrada">
+          <input type="time" id="manual-entrada" value="08:00">
         </div>
         <div class="form-group">
-          <label>Hora Salida</label>
-          <input type="time" id="manual-salida">
+          <label>Hora Salida (Soporta cruce de medianoche)</label>
+          <input type="time" id="manual-salida" value="17:00">
         </div>
       </div>
       <div class="modal-actions">
         <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
-        <button onclick="guardarHorasManuales()" class="btn-action btn-green">Guardar Horas</button>
+        <button onclick="guardarHorasManuales()" class="btn-action btn-green">Guardar Registro</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
