@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -39,7 +39,6 @@
       </div>
     </div>
 
-    <!-- BOTONES PRINCIPALES -->
     <div id="worker-controls-container" class="shift-buttons-row">
       <button id="btn-fichar" onclick="confirmarToggleTurno()" class="btn-shift btn-green-large">
         ▶ Iniciar Turno
@@ -49,7 +48,6 @@
       </button>
     </div>
 
-    <!-- FILTRO RANGO Y SIMULADOR DE COBRO -->
     <div class="card-matrix glass-panel">
       <div class="filter-row-between">
         <div class="filter-row" style="margin-bottom:0;">
@@ -66,7 +64,6 @@
       </div>
     </div>
 
-    <!-- TABLA RESUMEN DIARIO CONSOLIDADO -->
     <div class="card-matrix glass-panel" id="card-tabla-worker-registros">
       <div class="card-header-title">Resumen Diario Consolidado</div>
       <div class="table-container">
@@ -101,7 +98,6 @@
       </div>
     </div>
 
-    <!-- RESUMEN Y NÓMINA -->
     <div class="card-matrix glass-panel">
       <div class="card-header-title">📅 Resumen de Nómina y Reporte a Superiores</div>
       <div class="filter-row">
@@ -125,7 +121,6 @@
       </div>
     </div>
 
-    <!-- PERSONAL REGISTRADO -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Personal Registrado y Tarifas</span>
@@ -148,7 +143,6 @@
       </div>
     </div>
 
-    <!-- ASISTENCIAS Y REPORTES EN TIEMPO REAL -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Historial y Asistencias Consolidadas (Por Trabajador y Día)</span>
@@ -214,7 +208,6 @@
     </div>
   </div>
 
-  <!-- MODAL: RESUMEN DE PAGO PARA SUPERIORES -->
   <div id="modal-resumen-pago" class="modal-backdrop hidden">
     <div class="modal-box glass-panel" style="max-width: 600px;">
       <h3 class="neon-title">📋 Resumen de Pago para Superiores</h3>
@@ -316,6 +309,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
