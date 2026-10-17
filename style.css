@@ -153,11 +153,33 @@ body {
 .btn-gray { background: #334155; color: #f8fafc; }
 .btn-refresh { background: #3b82f6; color: #ffffff; }
 
-.btn-link {
-  background: none; border: none; color: #3b82f6;
-  cursor: pointer; margin-right: 8px; text-decoration: underline;
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-right: 6px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
 }
-.btn-link-red { color: #ef4444; }
+.btn-icon:hover { background: rgba(255,255,255,0.1); }
+
+.pulse-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #10b981;
+  margin-right: 6px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
 
 .form-group { margin-bottom: 12px; text-align: left; }
 .form-group label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 4px; }
