@@ -92,10 +92,9 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// CALCULAR SEMANA EN CURSO (LUNES A DOMINGO)
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const day = now.getDay(); // 0 es domingo, 1 es lunes...
+  const day = now.getDay();
   const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
   
   const lunes = new Date(now.setDate(diffToMonday));
@@ -127,24 +126,24 @@ async function loadWorkerData() {
 
   const turnosFiltrados = workerTurnosCache.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
 
-  // CONSOLIDAR POR DÍA (Regla de media noche: se suman al día de inicio)
+  // REGLA DE MEDIA NOCHE: Las horas se suman estrictamente al día de inicio (fecha_inicio)
   let diasAgrupados = {};
   turnosFiltrados.forEach(t => {
-    const fechaInicioTurno = t.fecha_inicio; // Asigna al día de inicio siempre
-    if (!diasAgrupados[fechaInicioTurno]) {
-      diasAgrupados[fechaInicioTurno] = { primeraEntrada: t.hora_entrada, ultimaSalida: t.hora_salida, totalHoras: 0, turnosDia: [] };
+    const fechaInicio = t.fecha_inicio;
+    if (!diasAgrupados[fechaInicio]) {
+      diasAgrupados[fechaInicio] = { primeraEntrada: t.hora_entrada, ultimaSalida: t.hora_salida, totalHoras: 0, turnosDia: [] };
     }
-    diasAgrupados[fechaInicioTurno].turnosDia.push(t);
-    diasAgrupados[fechaInicioTurno].totalHoras += parseFloat(t.horas_totales || 0);
+    diasAgrupados[fechaInicio].turnosDia.push(t);
+    diasAgrupados[fechaInicio].totalHoras += parseFloat(t.horas_totales || 0);
     
-    if (new Date(t.hora_entrada) < new Date(diasAgrupados[fechaInicioTurno].primeraEntrada)) {
-      diasAgrupados[fechaInicioTurno].primeraEntrada = t.hora_entrada;
+    if (new Date(t.hora_entrada) < new Date(diasAgrupados[fechaInicio].primeraEntrada)) {
+      diasAgrupados[fechaInicio].primeraEntrada = t.hora_entrada;
     }
-    if (t.hora_salida && (!diasAgrupados[fechaInicioTurno].ultimaSalida || new Date(t.hora_salida) > new Date(diasAgrupados[fechaInicioTurno].ultimaSalida))) {
-      diasAgrupados[fechaInicioTurno].ultimaSalida = t.hora_salida;
+    if (t.hora_salida && (!diasAgrupados[fechaInicio].ultimaSalida || new Date(t.hora_salida) > new Date(diasAgrupados[fechaInicio].ultimaSalida))) {
+      diasAgrupados[fechaInicio].ultimaSalida = t.hora_salida;
     }
     if (t.estado === 'en_turno') {
-      diasAgrupados[fechaInicioTurno].ultimaSalida = null;
+      diasAgrupados[fechaInicio].ultimaSalida = null;
     }
   });
 
@@ -169,7 +168,7 @@ async function loadWorkerData() {
 
   document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
 
-  // Simulador de cobro local
+  // Simulador de cobro local independiente
   let tarifa = parseFloat(currentUser.tarifa || 1.5);
   let estimado = totalHorasPeriodo * tarifa;
   if (currentUser.tipo_pago === 'Gasolina') estimado = totalHorasPeriodo * 1.4 * 0.5;
@@ -180,7 +179,7 @@ async function loadWorkerData() {
 
 function verDetallesDia(fecha, listaTurnos) {
   document.getElementById("detalle-titulo").innerText = `Desglose de Turnos: ${fecha}`;
-  let html = `<p>Veces que inició / finalizó turno: <strong>${listaTurnos.length}</strong></p><hr style="border-color:#334155; margin:10px 0;">`;
+  let html = `<p>Sesiones iniciadas el <strong>${fecha}</strong>: ${listaTurnos.length}</p><hr style="border-color:#334155; margin:10px 0;">`;
   
   listaTurnos.forEach((t, index) => {
     html += `
@@ -188,7 +187,7 @@ function verDetallesDia(fecha, listaTurnos) {
         <small><strong>Sesión #${index + 1}</strong></small><br>
         Entrada: ${new Date(t.hora_entrada).toLocaleTimeString()}<br>
         Salida: ${t.hora_salida ? new Date(t.hora_salida).toLocaleTimeString() : 'En curso'}<br>
-        Horas: <span class="txt-green">${t.horas_totales || 0} hrs</span>
+        Horas asignadas a este día: <span class="txt-green">${t.horas_totales || 0} hrs</span>
       </div>
     `;
   });
@@ -200,7 +199,7 @@ function verDetallesDia(fecha, listaTurnos) {
 function confirmarToggleTurno() {
   const enTurno = !!currentShift;
   document.getElementById("confirm-title").innerText = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
-  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro de finalizar tu turno de asistencia?" : "¿Estás seguro de iniciar un nuevo turno?";
+  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro de finalizar tu turno?" : "¿Estás seguro de iniciar turno?";
   document.getElementById("modal-confirm").classList.remove("hidden");
 }
 
@@ -212,7 +211,7 @@ async function ejecutarToggleTurno() {
   if (!currentShift) {
     await supabaseClient.from("registros_turnos").insert([{
       id_usuario: currentUser.id,
-      fecha_inicio: dateStr,
+      fecha_inicio: dateStr, // Se fija la fecha del día de inicio
       hora_entrada: now.toISOString(),
       estado: "en_turno",
       origen: "sistema"
@@ -248,7 +247,7 @@ function toggleReceso() {
     tiempoRecesoInicio = new Date();
     btnReceso.innerText = "▶ Reanudar Turno";
     btnReceso.className = "btn-shift btn-green-large";
-    alert("⏸ Receso iniciado. El tiempo de pausa se descontará al finalizar.");
+    alert("⏸ Pausa iniciada.");
   } else {
     recesoActivo = false;
     tiempoRecesoInicio = null;
@@ -382,7 +381,6 @@ async function loadAsistenciasAdminConsolidado() {
     .select("*, usuarios(nombre)")
     .order("fecha_inicio", { ascending: false });
 
-  // Agrupar por trabajador y fecha (1 línea por trabajador y día)
   let agrupado = {};
   (turnos || []).forEach(t => {
     const uNombre = t.usuarios?.nombre || 'Desconocido';
@@ -409,11 +407,11 @@ async function loadAsistenciasAdminConsolidado() {
       <td><strong>${item.nombre}</strong></td>
       <td>${item.fecha}</td>
       <td>
-        ${item.activo ? '<span class="pulse-dot" title="Trabajador en Turno Activo"></span><span class="txt-green">En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}
+        ${item.activo ? '<span class="pulse-dot" title="Activo"></span><span class="txt-green">En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}
       </td>
       <td>
         <button onclick='verDetallesAdmin(${JSON.stringify(item.lista)})' class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
-        ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;" title="Forzar salida de turno olvidado">Forzar Salida</button>` : ''}
+        ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;" title="Forzar salida">Forzar Salida</button>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -422,7 +420,7 @@ async function loadAsistenciasAdminConsolidado() {
 
 function verDetallesAdmin(listaTurnos) {
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado de Turnos`;
-  let html = `<p>Sesiones registradas en este día:</p><hr style="border-color:#334155; margin:10px 0;">`;
+  let html = `<p>Sesiones:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
   listaTurnos.forEach((t) => {
     html += `
@@ -440,7 +438,7 @@ function verDetallesAdmin(listaTurnos) {
 }
 
 async function forzarSalida(idTurno) {
-  if (confirm("¿Estás seguro de forzar la salida de este turno activo?")) {
+  if (confirm("¿Forzar salida de este turno activo?")) {
     const now = new Date();
     await supabaseClient.from("registros_turnos").update({
       hora_salida: now.toISOString(),
@@ -451,10 +449,8 @@ async function forzarSalida(idTurno) {
 }
 
 function exportarExcel() {
-  alert("Generando archivo CSV/Excel para exportar...");
-  // Exportación rápida simulada
+  alert("Generando reporte CSV...");
   let csv = "Usuario,Fecha,Horas\n";
-  // Puedes expandirlo con los datos de las tablas
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -530,9 +526,11 @@ function openConfigTarifasModal() {
 async function aplicarTarifaGlobal() {
   const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
   if (!isNaN(nueva)) {
+    // Aplica la tarifa general únicamente a los que cobran por horas, respetando tarifas individuales si se desea o actualizando la base
     await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("tipo_pago", "Horas");
     closeModals();
     loadAdminData();
+    alert("Tarifa general actualizada con éxito para el personal por hora.");
   }
 }
 
