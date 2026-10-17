@@ -165,10 +165,19 @@ async function loadWorkerData() {
 
   document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
 
-  let tarifa = parseFloat(currentUser.tarifa || 1.5);
-  let estimado = totalHorasPeriodo * tarifa;
-  if (currentUser.tipo_pago === 'Gasolina') estimado = totalHorasPeriodo * 1.4 * 0.5;
-  else if (currentUser.tipo_pago === 'Fijo') estimado = parseFloat(currentUser.tarifa || 300);
+  let estimado = 0;
+  if (currentUser.tipo_pago === 'Gasolina') {
+    estimado = totalHorasPeriodo * 1.4 * 0.5;
+  } else if (currentUser.tipo_pago === 'Fijo') {
+    let d1 = new Date(desde);
+    let d2 = new Date(hasta);
+    let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+    let semanas = Math.max(1, diffDias / 7);
+    estimado = parseFloat(currentUser.tarifa || 300) * semanas;
+  } else {
+    let tarifa = parseFloat(currentUser.tarifa || 1.5);
+    estimado = totalHorasPeriodo * tarifa;
+  }
 
   document.getElementById("w-monto-editable").value = estimado.toFixed(2);
 }
@@ -332,19 +341,13 @@ function renderTablaUsuarios(users) {
   });
 }
 
-async function calcularNomina() {
-  const desde = document.getElementById("filtro-desde").value;
-  const hasta = document.getElementById("filtro-hasta").value;
+function calcularNominaParaFechas(desde, hasta, turnos) {
+  let d1 = new Date(desde);
+  let d2 = new Date(hasta);
+  let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+  let semanas = Math.max(1, diffDias / 7);
 
-  const { data: turnos } = await supabaseClient
-    .from("registros_turnos")
-    .select("*")
-    .gte("fecha_inicio", desde)
-    .lte("fecha_inicio", hasta);
-
-  const tbody = document.getElementById("tabla-nomina");
-  tbody.innerHTML = "";
-
+  let resumenList = [];
   cachedUsers.forEach(u => {
     const userTurnos = (turnos || []).filter(t => t.id_usuario === u.id);
     let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
@@ -356,21 +359,96 @@ async function calcularNomina() {
       totalPagar = totalHoras * 1.4 * 0.5;
       tarifaTexto = "1.4L/h × $0.5";
     } else if (u.tipo_pago === "Fijo") {
-      totalPagar = parseFloat(u.tarifa || 0);
-      tarifaTexto = `$${u.tarifa || 0}`;
+      let montoBase = parseFloat(u.tarifa || 300);
+      totalPagar = montoBase * semanas;
+      tarifaTexto = `$${montoBase} / sem (${semanas.toFixed(1)} sem)`;
     } else {
       totalPagar = totalHoras * parseFloat(u.tarifa || 1.5);
     }
 
+    resumenList.push({
+      nombre: u.nombre,
+      tipo: u.tipo_pago || 'Horas',
+      horas: totalHoras,
+      tarifaTexto: tarifaTexto,
+      totalPagar: totalPagar
+    });
+  });
+  return resumenList;
+}
+
+async function calcularNomina() {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+
+  const { data: turnos } = await supabaseClient
+    .from("registros_turnos")
+    .select("*")
+    .gte("fecha_inicio", desde)
+    .lte("fecha_inicio", hasta);
+
+  const resumen = calcularNominaParaFechas(desde, hasta, turnos);
+  const tbody = document.getElementById("tabla-nomina");
+  tbody.innerHTML = "";
+
+  resumen.forEach(item => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${u.nombre}</strong></td>
-      <td>${u.tipo_pago || 'Horas'}</td>
-      <td class="txt-green">${totalHoras.toFixed(2)} hrs</td>
-      <td>${tarifaTexto}</td>
-      <td class="txt-green">$${totalPagar.toFixed(2)}</td>
+      <td><strong>${item.nombre}</strong></td>
+      <td>${item.tipo}</td>
+      <td class="txt-green">${item.horas.toFixed(2)} hrs</td>
+      <td>${item.tarifaTexto}</td>
+      <td class="txt-green">$${item.totalPagar.toFixed(2)}</td>
     `;
     tbody.appendChild(tr);
+  });
+}
+
+async function abrirResumenPagoModal() {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+  if (!desde || !hasta) { alert("Selecciona las fechas de inicio y fin."); return; }
+
+  const { data: turnos } = await supabaseClient
+    .from("registros_turnos")
+    .select("*")
+    .gte("fecha_inicio", desde)
+    .lte("fecha_inicio", hasta);
+
+  const resumen = calcularNominaParaFechas(desde, hasta, turnos);
+  
+  document.getElementById("resumen-rango-fechas").innerText = `Período del ${desde} al ${hasta}`;
+  
+  let html = `<ul style="list-style:none; padding:0;">`;
+  let granTotal = 0;
+
+  resumen.forEach(item => {
+    granTotal += item.totalPagar;
+    if (item.tipo === 'Fijo') {
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${item.nombre}</strong> (Fijo): <span class="txt-green">$${item.totalPagar.toFixed(2)}</span></li>`;
+    } else if (item.tipo === 'Gasolina') {
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${item.nombre}</strong> (${item.horas.toFixed(2)} hrs - Gasolina): <span class="txt-green">$${item.totalPagar.toFixed(2)}</span></li>`;
+    } else {
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${item.nombre}</strong>: ${item.horas.toFixed(2)} hrs sumadas = <span class="txt-green">$${item.totalPagar.toFixed(2)}</span></li>`;
+    }
+  });
+
+  html += `</ul>`;
+  html += `<div style="margin-top:15px; padding-top:10px; border-top:2px solid #10b981; text-align:right; font-size:1.1rem; font-weight:bold;">Gran Total a Pagar: <span class="txt-green">$${granTotal.toFixed(2)}</span></div>`;
+
+  document.getElementById("resumen-pago-contenido").innerHTML = html;
+  document.getElementById("modal-resumen-pago").classList.remove("hidden");
+}
+
+function copiarResumenPago() {
+  const contenido = document.getElementById("resumen-pago-contenido").innerText;
+  const rango = document.getElementById("resumen-rango-fechas").innerText;
+  const textoFinal = `📊 REPORTE DE NÓMINA\n${rango}\n\n${contenido}`;
+  
+  navigator.clipboard.writeText(textoFinal).then(() => {
+    alert("¡Resumen copiado al portapapeles listo para enviar!");
+  }).catch(err => {
+    alert("Error al copiar: " + err);
   });
 }
 
@@ -561,7 +639,7 @@ async function guardarHorasManuales() {
 
   let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
   if (diffHrs < 0) {
-    diffHrs += 24; // Corrección cruce medianoche en registros manuales
+    diffHrs += 24;
   }
 
   await supabaseClient.from("registros_turnos").insert([{
