@@ -586,4 +586,4 @@ async function borrarTurno(id) {
     closeModals();
     loadAdminData();
   }
-}
+} 
