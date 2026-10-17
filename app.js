@@ -13,7 +13,6 @@ try {
 let currentUser = null;
 let currentShift = null;
 
-// BASE DE DATOS LOCAL DE RESPALDO GARANTIZADA
 let fallbackUsers = [
   { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
   { id: 2, nombre: "Ronald", usuario: "ronald", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.50, cargo: "Operaciones" },
@@ -72,7 +71,7 @@ async function syncUsersFromSupabase() {
       cachedUsers = users;
     }
   } catch (e) {
-    console.warn("Fallo conectando con Supabase para usuarios. Usando respaldo local.");
+    console.warn("Usando usuarios de respaldo local.");
   }
 }
 
@@ -214,23 +213,11 @@ async function loadWorkerData() {
 
   if ((currentUser.tipo_pago || "").trim() === 'Gasolina') {
     let totalLitros = totalHorasPeriodo * 1.4;
-    let totalDolares = totalLitros * 0.50;
     document.getElementById("w-total-periodo").innerText = `${totalHorasPeriodo.toFixed(2)} hrs (${totalLitros.toFixed(1)} L)`;
-    document.getElementById("w-monto-editable").value = totalDolares.toFixed(2);
   } else if ((currentUser.tipo_pago || "").trim() === 'Fijo') {
-    let d1 = new Date(desde);
-    let d2 = new Date(hasta);
-    let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
-    let semanas = Math.max(1, diffDias / 7);
-    let montoFijoSemanal = parseFloat(currentUser.tarifa || 150);
-    let estimado = montoFijoSemanal * semanas;
-    document.getElementById("w-total-periodo").innerText = `${semanas.toFixed(1)} semanas`;
-    document.getElementById("w-monto-editable").value = estimado.toFixed(2);
+    document.getElementById("w-total-periodo").innerText = `Fijo Semanal`;
   } else {
     document.getElementById("w-total-periodo").innerText = totalHorasPeriodo.toFixed(2) + " hrs";
-    let tarifa = parseFloat(currentUser.tarifa || 1.5);
-    let estimado = totalHorasPeriodo * tarifa;
-    document.getElementById("w-monto-editable").value = estimado.toFixed(2);
   }
 }
 
@@ -311,15 +298,16 @@ async function guardarNuevoPinSeguro() {
   const nuevo = document.getElementById("pin-nuevo-input").value.trim();
   const confirmar = document.getElementById("pin-confirmar-input").value.trim();
 
-  if (actual !== String(currentUser.pin).trim()) { alert("El PIN actual no es correcto."); return; }
-  if (!nuevo || nuevo !== confirmar) { alert("El nuevo PIN y su confirmación no coinciden."); return; }
+  if (actual && actual !== String(currentUser.pin).trim()) { alert("El PIN actual no es correcto."); return; }
+  if (nuevo && nuevo !== confirmar) { alert("El nuevo PIN y su confirmación no coinciden."); return; }
 
-  currentUser.pin = nuevo;
-  if (supabaseClient) {
-    await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id);
+  if (nuevo) {
+    currentUser.pin = nuevo;
+    if (supabaseClient) {
+      await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id);
+    }
+    alert("PIN actualizado con éxito.");
   }
-
-  alert("PIN actualizado con éxito.");
   closeModals();
 }
 
@@ -341,7 +329,6 @@ async function loadAdminData() {
 
   renderTablaUsuarios(cachedUsers);
   loadAsistenciasAdminConsolidado();
-  calcularNomina();
 }
 
 function togglePinVisibility(id, btnId) {
@@ -359,13 +346,39 @@ function togglePinVisibility(id, btnId) {
 }
 
 function renderTablaUsuarios(users) {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+
+  let d1 = new Date(desde);
+  let d2 = new Date(hasta);
+  let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+  let semanas = Math.max(1, diffDias / 7);
+
+  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+
   const tbody = document.getElementById("tabla-usuarios");
   tbody.innerHTML = "";
+
   users.forEach((u, index) => {
     let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? u.tarifa : 1.5;
     let tarifaLabel = `$${tarifaVal}`;
-    if ((u.tipo_pago || "").trim() === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
-    else if ((u.tipo_pago || "").trim() === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
+    let tipoPago = (u.tipo_pago || "Horas").trim();
+
+    if (tipoPago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
+    else if (tipoPago === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
+
+    const userTurnos = turnosFiltrados.filter(t => t.id_usuario === u.id);
+    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    
+    let totalPagar = 0;
+    if (tipoPago === "Gasolina") {
+      let litros = totalHoras * 1.4;
+      totalPagar = litros * 0.50;
+    } else if (tipoPago === "Fijo") {
+      totalPagar = tarifaVal * semanas;
+    } else {
+      totalPagar = totalHoras * tarifaVal;
+    }
 
     const pinId = `pin-text-${index}`;
     const btnId = `pin-btn-${index}`;
@@ -377,9 +390,11 @@ function renderTablaUsuarios(users) {
         <span id="${pinId}" data-pin="${u.pin}">••••</span>
         <button id="${btnId}" onclick="togglePinVisibility('${pinId}', '${btnId}')" class="btn-icon" style="margin-left:5px;" title="Ver PIN">👁️</button>
       </td>
-      <td>${u.tipo_pago || 'Horas'}</td>
+      <td>${tipoPago}</td>
       <td class="txt-green">${tarifaLabel}</td>
       <td>${u.cargo || 'Operaciones'}</td>
+      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : totalHoras.toFixed(2) + ' hrs'}</strong></td>
+      <td class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
       <td>
         <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon" title="Editar">✏️</button>
         ${u.usuario !== 'admin' && u.usuario !== 'administrador' ? `<button onclick="borrarUsuario(${u.id})" class="btn-icon" title="Borrar">🗑️</button>` : ''}
@@ -426,29 +441,6 @@ function calcularNominaParaFechas(desde, hasta, turnos) {
     });
   });
   return resumenList;
-}
-
-function calcularNomina() {
-  const desde = document.getElementById("filtro-desde").value;
-  const hasta = document.getElementById("filtro-hasta").value;
-  if (!desde || !hasta) return;
-
-  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
-  const resumen = calcularNominaParaFechas(desde, hasta, turnosFiltrados);
-  const tbody = document.getElementById("tabla-nomina");
-  tbody.innerHTML = "";
-
-  resumen.forEach(item => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${item.nombre}</strong></td>
-      <td>${item.tipo}</td>
-      <td class="txt-green">${item.tipo === 'Fijo' ? '-' : item.horas.toFixed(2) + ' hrs'}</td>
-      <td>${item.tarifaTexto}</td>
-      <td class="txt-green">$${item.totalPagar.toFixed(2)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
 }
 
 function abrirResumenPagoModal() {
@@ -553,11 +545,9 @@ function verDetallesAdmin(listaTurnos) {
 }
 
 async function forzarSalida(idTurno) {
-  if (confirm("¿Forzar salida de este turno activo?")) {
+  if (confirm("¿Forzar salida de este turno activo?") && supabaseClient) {
     const now = new Date();
-    if (supabaseClient) {
-      await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
-    }
+    await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
     loadAdminData();
   }
 }
