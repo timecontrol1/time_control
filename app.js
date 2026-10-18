@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CON PROXY ANTI-BLOQUEO)
+// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (SIN BLOQUEO DE NAVEGADOR / CORS)
 async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -28,22 +28,32 @@ async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora)
                   `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  // Proxy corsproxy.io para que el navegador no bloquee el envío desde Render
-  const url = `https://corsproxy.io/?https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+  const url = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+
+  const payload = JSON.stringify({
+    chatId: WHATSAPP_GROUP_ID,
+    message: mensaje
+  });
 
   try {
+    // Usamos text/plain para evitar que el navegador envíe preflight de CORS y bloquee la petición
     await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        chatId: WHATSAPP_GROUP_ID,
-        message: mensaje
-      })
+      headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: payload
     });
   } catch (error) {
-    console.warn("Error enviando mensaje a WhatsApp:", error);
+    // Intento secundario con no-cors por si el entorno es restringido
+    try {
+      await fetch(url, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: payload
+      });
+    } catch (e) {
+      console.warn("Error enviando mensaje a WhatsApp:", e);
+    }
   }
 }
 
