@@ -16,7 +16,7 @@ let currentUser = null;
 let currentShift = null;
 let cachedTurnos = [];
 
-// BASE DE DATOS LOCAL DE RESPALDO
+// BASE DE DATOS LOCAL DE RESPALDO (Incluyendo los registros históricos de octubre)
 let cachedUsers = [
   { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
   { id: 2, nombre: "Ronald", usuario: "ronald", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.50, cargo: "Operaciones" },
@@ -69,7 +69,6 @@ function initMatrixEffect() {
 // CÁLCULO DE FECHAS (LUNES A DOMINGO EXACTO)
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  
   const year = now.getFullYear();
   const month = now.getMonth();
   const date = now.getDate();
@@ -143,7 +142,7 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// CARGAR DATOS TRABAJADOR
+// CARGAR DATOS TRABAJADOR Y HISTORIAL
 async function loadWorkerData() {
   if (!currentUser) return;
 
@@ -153,7 +152,7 @@ async function loadWorkerData() {
         .from("registros_turnos")
         .select("*")
         .eq("id_usuario", currentUser.id)
-        .order("id", { ascending: false });
+        .order("fecha_inicio", { ascending: false });
 
       if (!error && data) {
         cachedTurnos = data;
@@ -163,9 +162,8 @@ async function loadWorkerData() {
     }
   }
 
-  // Detectar si hay turno activo
-  const activo = cachedTurnos.find(t => t.estado === "en_turno" || !t.hora_salida);
-  currentShift = activo || null;
+  // Detectar si hay turno activo (estado en_turno o sin hora_salida)
+  currentShift = cachedTurnos.find(t => t.estado === "en_turno" || !t.hora_salida) || null;
   
   actualizarBotonesTurno(!!currentShift);
   renderTablaTrabajador();
@@ -208,7 +206,7 @@ function confirmarToggleTurno() {
   }
 }
 
-// EJECUCIÓN AL PRESIONAR SÍ
+// EJECUCIÓN AL PRESIONAR SÍ (CONFIRMAR)
 async function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
@@ -271,7 +269,7 @@ async function ejecutarToggleTurno() {
     currentShift.hora_salida = salida.toISOString();
     currentShift.horas_totales = parseFloat(diffHrs.toFixed(2));
     currentShift.estado = "completado";
-    currentShift = null; // Limpiar turno activo
+    currentShift = null;
   }
 
   await loadWorkerData();
@@ -286,7 +284,7 @@ function toggleReceso() {
   alert("Pausa / Receso registrado.");
 }
 
-// RENDERIZAR TABLA
+// RENDERIZAR TABLA DE HISTORIAL Y FECHAS ANTERIORES
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde").value;
   const hasta = document.getElementById("w-filtro-hasta").value;
@@ -295,6 +293,7 @@ function renderTablaTrabajador() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
+  // Filtrar turnos según el rango de fechas seleccionado
   const filtrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
 
   let totalHoras = 0;
