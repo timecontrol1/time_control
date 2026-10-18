@@ -3,59 +3,88 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Control de Turnos y Nómina</title>
+  <title>Control de Asistencias y Nómina</title>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
-      --bg-dark: #030712;
-      --panel-bg: #0f172a;
-      --card-bg: #1e293b;
-      --border-color: #334155;
+      --bg-dark: #0b0f19;
+      --panel-bg: #111827;
+      --card-bg: #1f2937;
+      --border-color: #374151;
       --accent-green: #10b981;
       --accent-green-hover: #059669;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
       --danger: #ef4444;
       --danger-hover: #dc2626;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     body { background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; overflow-x: hidden; position: relative; }
 
-    #matrix-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.15; pointer-events: none; }
+    /* Fondo Matrix Sutil */
+    #matrix-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; opacity: 0.12; pointer-events: none; }
 
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
     .hidden { display: none !important; }
 
-    /* Estilos de Tarjetas y Paneles */
-    .card { background-color: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); }
-    h1, h2, h3 { color: var(--accent-green); margin-bottom: 15px; }
+    /* Diseños de Tarjetas */
+    .card { background-color: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    h1, h2, h3 { color: var(--text-main); font-weight: 600; margin-bottom: 12px; }
     
-    /* Formularios y Botones */
-    input, select { width: 100%; padding: 12px; margin-bottom: 15px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); font-size: 1rem; }
+    /* Login Portada Restaurada */
+    .login-box {
+      max-width: 380px;
+      margin: 100px auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 35px 28px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      position: relative;
+      z-index: 2;
+    }
+
+    .login-icon {
+      width: 56px;
+      height: 56px;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px auto;
+      color: var(--accent-green);
+      font-size: 24px;
+    }
+
+    /* Formularios */
+    label { display: block; text-align: left; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; }
+    input, select { width: 100%; padding: 12px 14px; margin-bottom: 16px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); font-size: 0.95rem; transition: border-color 0.2s; }
     input:focus, select:focus { outline: none; border-color: var(--accent-green); }
 
-    .btn { background-color: var(--accent-green); color: #022c22; font-weight: bold; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 1rem; width: 100%; transition: background 0.2s; }
+    .btn { background-color: var(--accent-green); color: #064e3b; font-weight: 600; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95rem; width: 100%; transition: all 0.2s; }
     .btn:hover { background-color: var(--accent-green-hover); color: #fff; }
     
-    .btn-action { background-color: var(--accent-green); color: #022c22; font-weight: bold; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
-    .btn-gray { background-color: #475569; color: #fff; }
+    .btn-action { background-color: var(--accent-green); color: #064e3b; font-weight: 600; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .btn-gray { background-color: #374151; color: #fff; }
     .btn-red { background-color: var(--danger); color: #fff; }
     .btn-red:hover { background-color: var(--danger-hover); }
 
     /* Tablas */
     .table-responsive { width: 100%; overflow-x: auto; margin-top: 15px; }
     table { width: 100%; border-collapse: collapse; text-align: left; }
-    th, td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
-    th { background-color: var(--card-bg); color: var(--accent-green); }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+    th { background-color: var(--card-bg); color: var(--text-muted); font-weight: 600; }
 
     .header-flex { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
     .txt-green { color: var(--accent-green); }
     .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 4px; color: var(--text-main); }
     
     /* Modales */
-    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: none; justify-content: center; align-items: center; z-index: 9999; }
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 9999; }
     .modal-content { background-color: var(--panel-bg); padding: 25px; border-radius: 12px; width: 90%; max-width: 650px; border: 1px solid var(--border-color); max-height: 90vh; overflow-y: auto; }
   </style>
 </head>
@@ -65,45 +94,53 @@
 
   <div class="container">
 
-    <!-- SECCIÓN DE LOGIN -->
-    <section id="sec-login" class="card" style="max-width: 400px; margin: 80px auto; text-align: center;">
-      <h2>🔐 Control de Acceso</h2>
-      <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">Ingresa tus credenciales para continuar</p>
-      <input type="text" id="login-usuario" placeholder="Usuario o Nombre" autocomplete="off">
-      <input type="password" id="login-pin" placeholder="PIN de Acceso">
-      <button class="btn" onclick="login()">Ingresar al Sistema</button>
+    <!-- PORTADA Y PANEL INICIAL RESTAURADO -->
+    <section id="sec-login" class="login-box">
+      <div class="login-icon">🔒</div>
+      <h2>Iniciar Sesión</h2>
+      <p style="color: var(--text-muted); margin-bottom: 24px; font-size: 0.88rem;">Control de Asistencias & Nómina</p>
+      
+      <div style="text-align: left;">
+        <label for="login-usuario">Usuario / Nombre</label>
+        <input type="text" id="login-usuario" placeholder="Ingresa tu usuario" autocomplete="off">
+        
+        <label for="login-pin">PIN de Acceso</label>
+        <input type="password" id="login-pin" placeholder="••••">
+      </div>
+      
+      <button class="btn" onclick="login()">Ingresar</button>
     </section>
 
-    <!-- SECCIÓN PANEL TRABAJADOR -->
+    <!-- PANEL TRABAJADOR -->
     <section id="sec-trabajador" class="hidden">
       <div class="header-flex card">
         <div>
           <h2 id="worker-title">Trabajador</h2>
-          <p style="color: var(--text-muted); font-size: 0.9rem;">Panel de control y marcaje de turnos</p>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Panel de control y marcaje de turnos</p>
         </div>
         <button class="btn btn-red" style="width: auto;" onclick="logout()">Cerrar Sesión</button>
       </div>
 
       <!-- Tarjeta de Fichaje -->
-      <div class="card" style="text-align: center; padding: 40px 20px;">
-        <h3 style="margin-bottom: 20px;">Control de Jornada</h3>
-        <button id="btn-fichar" class="btn" style="font-size: 1.3rem; padding: 20px; max-width: 300px; margin: 0 auto; background-color: var(--accent-green); color: #022c22;" onclick="confirmarToggleTurno()">▶ Iniciar Turno</button>
+      <div class="card" style="text-align: center; padding: 35px 20px;">
+        <h3 style="margin-bottom: 18px;">Control de Jornada</h3>
+        <button id="btn-fichar" class="btn" style="font-size: 1.2rem; padding: 18px; max-width: 280px; margin: 0 auto;" onclick="confirmarToggleTurno()">▶ Iniciar Turno</button>
       </div>
 
-      <!-- Simulador de Cobro y Filtro Trabajador -->
+      <!-- Simulador de Cobro e Historial -->
       <div class="card">
         <h3>💰 Simulador de Cobro & Historial</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
           <div>
-            <label style="font-size: 0.85rem; color: var(--text-muted);">Desde:</label>
+            <label>Desde:</label>
             <input type="date" id="w-filtro-desde" onchange="renderTablaTrabajador()">
           </div>
           <div>
-            <label style="font-size: 0.85rem; color: var(--text-muted);">Hasta:</label>
+            <label>Hasta:</label>
             <input type="date" id="w-filtro-hasta" onchange="renderTablaTrabajador()">
           </div>
           <div>
-            <label style="font-size: 0.85rem; color: var(--text-muted);">Tu Tarifa por Hora ($):</label>
+            <label>Tu Tarifa por Hora ($):</label>
             <input type="number" id="w-tarifa-input" value="1.00" step="0.1" oninput="calcularSimuladorCobro()">
           </div>
         </div>
@@ -115,7 +152,7 @@
           </div>
           <div>
             <small style="color: var(--text-muted);" id="w-detalle-horas-estimadas">Suma de 0 hrs</small>
-            <div id="w-total-estimado" style="font-size: 1.5rem; font-weight: bold;" class="txt-green">$0.00</div>
+            <div id="w-total-estimado" style="font-size: 1.4rem; font-weight: bold;" class="txt-green">$0.00</div>
           </div>
         </div>
 
@@ -136,43 +173,43 @@
       </div>
     </section>
 
-    <!-- SECCIÓN PANEL ADMINISTRADOR -->
+    <!-- PANEL ADMINISTRADOR -->
     <section id="sec-admin" class="hidden">
       <div class="header-flex card">
         <div>
           <h2>👑 Panel de Administración</h2>
-          <p style="color: var(--text-muted); font-size: 0.9rem;">Gestión general de personal, tarifas y nómina</p>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Gestión de personal, tarifas y nómina</p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="btn btn-action" onclick="openConfigTarifasModal()">⚙️ Tarifa General</button>
-          <button class="btn btn-action" onclick="openConfigPinModal()" style="background-color: #64748b; color: #fff;">🔑 Cambiar PIN</button>
+          <button class="btn btn-action" onclick="openConfigPinModal()" style="background-color: #4b5563; color: #fff;">🔑 Cambiar PIN</button>
           <button class="btn btn-red" style="width: auto;" onclick="logout()">Cerrar Sesión</button>
         </div>
       </div>
 
-      <!-- Controles de Trabajadores y Acciones Manuales -->
+      <!-- Controles de Personal -->
       <div class="card">
         <div class="header-flex" style="margin-bottom: 10px;">
           <h3>👥 Gestión de Personal y Tarifas</h3>
           <div style="display: flex; gap: 10px; flex-wrap: wrap;">
             <button class="btn btn-action" onclick="openNuevoUsuarioModal()">➕ Nuevo Trabajador</button>
             <button class="btn btn-action btn-gray" onclick="openAgregarHorasModal()">⏱️ Carga Manual</button>
-            <button class="btn btn-action" style="background-color: #3b82f6; color: #fff;" onclick="openCargaMasivaModal()">📥 Carga Masiva Lotes</button>
+            <button class="btn btn-action" style="background-color: #2563eb; color: #fff;" onclick="openCargaMasivaModal()">📥 Carga Masiva Lotes</button>
           </div>
         </div>
 
         <!-- Filtros de Fecha Globales -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px; background: var(--card-bg); padding: 15px; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; background: var(--card-bg); padding: 15px; border-radius: 8px;">
           <div>
-            <label style="font-size: 0.85rem; color: var(--text-muted);">Filtrar Desde:</label>
+            <label>Filtrar Desde:</label>
             <input type="date" id="filtro-desde" onchange="loadAdminData()">
           </div>
           <div>
-            <label style="font-size: 0.85rem; color: var(--text-muted);">Filtrar Hasta:</label>
+            <label>Filtrar Hasta:</label>
             <input type="date" id="filtro-hasta" onchange="loadAdminData()">
           </div>
           <div style="display: flex; align-items: flex-end;">
-            <button class="btn" style="height: 46px;" onclick="abrirResumenPagoModal()">📊 Generar Reporte de Nómina</button>
+            <button class="btn" style="height: 44px;" onclick="abrirResumenPagoModal()">📊 Generar Reporte Nómina</button>
           </div>
         </div>
 
@@ -219,9 +256,9 @@
   <!-- MODALES DEL SISTEMA -->
   <!-- 1. Modal Confirmación de Turno -->
   <div id="modal-confirm" class="modal-backdrop">
-    <div class="modal-content" style="text-align: center; max-width: 400px;">
+    <div class="modal-content" style="text-align: center; max-width: 380px;">
       <h3 id="confirm-title">¿Iniciar Turno?</h3>
-      <p id="confirm-text" style="color: var(--text-muted); margin-bottom: 20px;">¿Estás seguro?</p>
+      <p id="confirm-text" style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">¿Estás seguro?</p>
       <div style="display: flex; gap: 10px; justify-content: center;">
         <button class="btn btn-gray" onclick="closeModals()">Cancelar</button>
         <button class="btn" onclick="ejecutarToggleTurno()">Confirmar</button>
@@ -243,19 +280,19 @@
     <div class="modal-content">
       <h3 id="modal-user-title">Nuevo Trabajador</h3>
       <input type="hidden" id="edit-user-id">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Nombre:</label>
+      <label>Nombre:</label>
       <input type="text" id="edit-user-nombre" placeholder="Nombre completo">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">PIN de Acceso:</label>
+      <label>PIN de Acceso:</label>
       <input type="text" id="edit-user-pin" placeholder="Ej. 1234">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Tipo de Pago:</label>
+      <label>Tipo de Pago:</label>
       <select id="edit-user-tipo">
         <option value="Horas">Horas</option>
         <option value="Fijo">Fijo</option>
         <option value="Gasolina">Gasolina (Planta)</option>
       </select>
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Tarifa ($ / Valor):</label>
+      <label>Tarifa ($ / Valor):</label>
       <input type="number" id="edit-user-tarifa" value="1.0" step="0.1">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Cargo:</label>
+      <label>Cargo:</label>
       <input type="text" id="edit-user-cargo" value="Operaciones">
       <input type="hidden" id="edit-user-rol" value="trabajador">
       <div style="display: flex; gap: 10px; margin-top: 15px;">
@@ -269,17 +306,17 @@
   <div id="modal-agregar-horas" class="modal-backdrop">
     <div class="modal-content">
       <h3>⏱️ Carga Manual de Horas</h3>
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Trabajador:</label>
+      <label>Trabajador:</label>
       <select id="manual-user-select"></select>
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Fecha:</label>
+      <label>Fecha:</label>
       <input type="date" id="manual-fecha">
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <div>
-          <label style="font-size: 0.85rem; color: var(--text-muted);">Hora Entrada:</label>
+          <label>Hora Entrada:</label>
           <input type="time" id="manual-entrada" value="08:00">
         </div>
         <div>
-          <label style="font-size: 0.85rem; color: var(--text-muted);">Hora Salida:</label>
+          <label>Hora Salida:</label>
           <input type="time" id="manual-salida" value="17:00">
         </div>
       </div>
@@ -307,8 +344,8 @@
   <div id="modal-config-tarifas" class="modal-backdrop">
     <div class="modal-content">
       <h3>⚙️ Aplicar Tarifa General</h3>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Actualiza la tarifa por hora de todos los trabajadores tarifados por hora de forma automática.</p>
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Nueva Tarifa ($):</label>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Actualiza la tarifa por hora de todos los trabajadores de forma automática.</p>
+      <label>Nueva Tarifa ($):</label>
       <input type="number" id="global-tarifa-input" value="1.00" step="0.1">
       <div style="display: flex; gap: 10px; margin-top: 15px;">
         <button class="btn btn-gray" onclick="closeModals()">Cancelar</button>
@@ -321,11 +358,11 @@
   <div id="modal-config-pin" class="modal-backdrop">
     <div class="modal-content">
       <h3>🔑 Cambiar PIN de Acceso</h3>
-      <label style="font-size: 0.85rem; color: var(--text-muted);">PIN Actual:</label>
+      <label>PIN Actual:</label>
       <input type="password" id="pin-actual-input" placeholder="••••">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Nuevo PIN:</label>
+      <label>Nuevo PIN:</label>
       <input type="password" id="pin-nuevo-input" placeholder="Nuevo PIN">
-      <label style="font-size: 0.85rem; color: var(--text-muted);">Confirmar Nuevo PIN:</label>
+      <label>Confirmar Nuevo PIN:</label>
       <input type="password" id="pin-confirmar-input" placeholder="Repetir PIN">
       <div style="display: flex; gap: 10px; margin-top: 15px;">
         <button class="btn btn-gray" onclick="closeModals()">Cancelar</button>
