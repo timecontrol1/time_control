@@ -15,31 +15,35 @@ if (window.supabase) {
   }
 }
 
-// OBTENER FECHA Y HORA REAL DE VENEZUELA (UTC-4)
+// FUNCIONES DE HORA REAL (VENEZUELA UTC-4)
 function getVenezuelaTime() {
   const now = new Date();
-  const venezuelaOffset = -4 * 60; // -240 minutos
+  const venezuelaOffset = -4 * 60; 
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
   return new Date(utc + (60000 * venezuelaOffset));
 }
 
 function getVenezuelaDateString(d = getVenezuelaTime()) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  try {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  } catch(e) { return new Date().toISOString().split('T')[0]; }
 }
 
 function getVenezuelaTimeString(d = getVenezuelaTime()) {
-  let hours = d.getHours();
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  try {
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  } catch(e) { return '--:--'; }
 }
 
-// ENVÍO DE WHATSAPP MEDIANTE PROXY PÚBLICO
+// ENVÍO DE WHATSAPP CON PROXY
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -95,7 +99,7 @@ function guardarTurnosLocales() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  initMatrixEffect();
+  try { initMatrixEffect(); } catch(e){}
   cargarTurnosLocales();
   await syncDataFromSupabase();
 
@@ -680,4 +684,64 @@ async function borrarTurno(id) {
     cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
     guardarTurnosLocales();
     if (supabaseClient) {
-      try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e
+      try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e) {}
+    }
+    closeModals();
+    await loadAdminData();
+  }
+}
+
+function openConfigTarifasModal() {
+  document.getElementById("modal-config-tarifas").classList.remove("hidden");
+  document.getElementById("modal-config-tarifas").style.display = "flex";
+}
+
+async function aplicarTarifaGlobal() {
+  const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
+  if (isNaN(nueva)) return;
+  cachedUsers.forEach(u => {
+    if ((u.tipo_pago || "").toLowerCase() !== "gasolina" && (u.tipo_pago || "").toLowerCase() !== "fijo") u.tarifa = nueva;
+  });
+  if (supabaseClient) {
+    try {
+      for (let u of cachedUsers) {
+        if ((u.tipo_pago || "").toLowerCase() !== "gasolina" && (u.tipo_pago || "").toLowerCase() !== "fijo") {
+          await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
+        }
+      }
+    } catch (e) {}
+  }
+  closeModals();
+  loadAdminData();
+  alert("Tarifa general aplicada con éxito.");
+}
+
+function openConfigPinModal() {
+  document.getElementById("modal-config-pin").classList.remove("hidden");
+  document.getElementById("modal-config-pin").style.display = "flex";
+}
+
+async function guardarNuevoPinSeguro() {
+  const actual = document.getElementById("pin-actual-input").value.trim();
+  const nuevo = document.getElementById("pin-nuevo-input").value.trim();
+  const confirmar = document.getElementById("pin-confirmar-input").value.trim();
+
+  if (actual && actual !== String(currentUser.pin).trim()) { alert("El PIN actual no es correcto."); return; }
+  if (nuevo && nuevo !== confirmar) { alert("El nuevo PIN y su confirmación no coinciden."); return; }
+
+  if (nuevo) {
+    currentUser.pin = nuevo;
+    if (supabaseClient) {
+      try { await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id); } catch (e) {}
+    }
+    alert("PIN actualizado con éxito.");
+  }
+  closeModals();
+}
+
+function closeModals() {
+  document.querySelectorAll(".modal-backdrop").forEach(m => {
+    m.classList.add("hidden");
+    m.style.display = "none";
+  });
+}
