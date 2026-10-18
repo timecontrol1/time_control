@@ -15,11 +15,19 @@ if (window.supabase) {
   }
 }
 
-// FORMATO DE FECHA Y HORA EXACTA LOCAL
+// HORA Y FECHA ESTRICTA DE VENEZUELA (UTC-4)
+function getVenezuelaDate(d = new Date()) {
+  // Ajuste matemático fijo UTC-4 para Venezuela para evitar desfase de servidores
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const offsetVZLA = -4 * 60; // -240 minutos
+  return new Date(utc + (60000 * offsetVZLA));
+}
+
 function getFormattedDate(d = new Date()) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
+  const vzla = getVenezuelaDate(d);
+  const yyyy = vzla.getFullYear();
+  const mm = String(vzla.getMonth() + 1).padStart(2, '0');
+  const dd = String(vzla.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -27,19 +35,25 @@ function getFormattedTime(val) {
   if (!val) return '--:--';
   try {
     const d = typeof val === 'number' ? new Date(val) : new Date(val);
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const vzla = getVenezuelaDate(d);
+    let hours = vzla.getHours();
+    const minutes = String(vzla.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
   } catch(e) { 
     return '--:--'; 
   }
 }
 
-// RELOJ EN VIVO PARA VERIFICAR LA HORA LOCAL EN VENEZUELA
+// RELOJ EN VIVO
 function iniciarRelojEnVivo() {
   const relojEl = document.getElementById("reloj-venezuela");
   if (!relojEl) return;
   setInterval(() => {
     const now = new Date();
-    relojEl.innerText = `🇻🇪 Hora Actual: ${getFormattedTime(now)}`;
+    relojEl.innerText = `🇻🇪 Hora Actual Venezuela: ${getFormattedTime(now)}`;
   }, 1000);
 }
 
@@ -162,10 +176,11 @@ function initMatrixEffect() {
 
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const date = now.getDate();
-  const dayOfWeek = now.getDay();
+  const vzla = getVenezuelaDate(now);
+  const year = vzla.getFullYear();
+  const month = vzla.getMonth();
+  const date = vzla.getDate();
+  const dayOfWeek = vzla.getDay();
   const distanceToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
   const monday = new Date(year, month, date + distanceToMonday);
   const sunday = new Date(year, month, date + distanceToMonday + 6);
@@ -235,7 +250,7 @@ async function login() {
       loadAdminData();
     } else {
       document.getElementById("sec-trabajador").classList.remove("hidden");
-      document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
+      document.getElementById("worker-title").innerText = `Trabajador: ${currentUser.nombre}`;
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
       loadWorkerData();
     }
