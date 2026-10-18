@@ -1,4 +1,272 @@
-<div id="modal-agregar-horas" class="modal-backdrop hidden">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de Asistencia - Matrix</title>
+  <link rel="stylesheet" href="style.css?v=40">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <canvas id="matrix-canvas"></canvas>
+
+  <!-- LOGIN -->
+  <div id="sec-login" class="login-box glass-panel">
+    <div class="shield-icon">🛡️</div>
+    <h2>Control de Asistencia</h2>
+    <p>Sistema de fichaje y gestión segura</p>
+    <div class="form-group">
+      <input type="text" id="login-usuario" placeholder="Usuario (ej. administrador, ronald)" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <input type="password" id="login-pin" placeholder="PIN de Acceso" autocomplete="off">
+    </div>
+    <button onclick="login()" class="btn-primary" style="width:100%; padding:10px; background:#10b981; border:none; border-radius:6px; font-weight:bold; cursor:pointer; color:#022c22;">Ingresar al Sistema</button>
+  </div>
+
+  <!-- PANEL TRABAJADOR -->
+  <div id="sec-trabajador" class="container hidden">
+    <div class="admin-header glass-panel">
+      <div>
+        <h2 id="worker-title" class="neon-title">Trabajador: Usuario</h2>
+        <p class="sub-title">Control personal de turnos y recesos</p>
+      </div>
+      <div class="header-actions">
+        <button onclick="loadWorkerData()" class="btn-action btn-refresh" title="Actualizar">🔄</button>
+        <button onclick="openConfigPinModal()" class="btn-action btn-orange" title="Configurar PIN">⚙ Configurar</button>
+        <button onclick="logout()" class="btn-action btn-red">Cerrar Sesión</button>
+      </div>
+    </div>
+
+    <div id="worker-controls-container" class="shift-buttons-row">
+      <button id="btn-fichar" onclick="confirmarToggleTurno()" class="btn-shift btn-green-large">
+        ▶ Iniciar Turno
+      </button>
+      <button id="btn-receso" onclick="toggleReceso()" class="btn-shift btn-orange-large">
+        ☕ Pausar / Receso
+      </button>
+    </div>
+
+    <div class="card-matrix glass-panel">
+      <div class="filter-row-between">
+        <div class="filter-row" style="margin-bottom:0;">
+          <label>📅 Rango de Fechas:</label>
+          <input type="date" id="w-filtro-desde">
+          <span>a</span>
+          <input type="date" id="w-filtro-hasta">
+          <button onclick="loadWorkerData()" class="btn-action btn-green">Calcular</button>
+        </div>
+        <div class="simulador-cobro">
+          <div id="label-total-periodo">Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-matrix glass-panel" id="card-tabla-worker-registros">
+      <div class="card-header-title">Resumen Diario Consolidado</div>
+      <div class="table-container">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Primera Entrada</th>
+              <th>Última Salida</th>
+              <th>Total Horas / Consumo</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-resumen-trabajador"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL ADMINISTRADOR -->
+  <div id="sec-admin" class="container hidden">
+    <div class="admin-header glass-panel">
+      <div>
+        <h1 class="neon-title">Control de Asistencia</h1>
+        <p class="sub-title">Panel de Administración y Gestión Completa</p>
+      </div>
+      <div class="header-actions">
+        <button onclick="openAgregarHorasModal()" class="btn-action btn-green">+ Agregar Horas</button>
+        <button onclick="openConfigTarifasModal()" class="btn-action btn-orange">⚙ Tarifas</button>
+        <button onclick="abrirResumenPagoModal()" class="btn-action btn-green" style="background:#059669; font-weight:bold;">📋 Enviar Reporte</button>
+        <button onclick="logout()" class="btn-action btn-red">Salir</button>
+      </div>
+    </div>
+
+    <!-- ÁREA 1: PERSONAL REGISTRADO -->
+    <div class="card-matrix glass-panel">
+      <div class="card-header-between">
+        <span class="card-header-title">Personal Registrado, Tarifas y Horas Acumuladas</span>
+        <button onclick="openNuevoUsuarioModal()" class="btn-action btn-green">+ Nuevo Trabajador</button>
+      </div>
+      <div class="filter-row" style="margin-top:10px; margin-bottom:15px;">
+        <label>Rango de Fechas: <input type="date" id="filtro-desde"></label>
+        <label>a <input type="date" id="filtro-hasta"></label>
+        <button onclick="loadAdminData()" class="btn-action btn-green">Filtrar Horas</button>
+      </div>
+      <div class="table-container">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>PIN</th>
+              <th>Tipo Pago</th>
+              <th>Tarifa / Monto</th>
+              <th>Cargo / Área</th>
+              <th>Horas Acumuladas</th>
+              <th>Total a Cobrar</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-usuarios"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ÁREA 2: HISTORIAL DE HORAS -->
+    <div class="card-matrix glass-panel">
+      <div class="card-header-between">
+        <span class="card-header-title">Historial de Horas Registradas (Por Trabajador y Día)</span>
+        <button onclick="loadAdminData()" class="btn-action btn-refresh">🔄 Actualizar</button>
+      </div>
+      <div class="table-container">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Fecha</th>
+              <th>Estado / Horas</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-asistencias"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALES DE CONFIRMACIÓN Y GESTIÓN -->
+  <div id="modal-confirm" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel" style="text-align:center;">
+      <h3 class="neon-title" id="confirm-title">¿Estás seguro?</h3>
+      <p id="confirm-text" style="margin: 15px 0; color:#cbd5e1;">¿Deseas registrar esta acción de asistencia?</p>
+      <div class="modal-actions" style="justify-content:center;">
+        <button onclick="ejecutarToggleTurno()" class="btn-action btn-green">Sí, Confirmar</button>
+        <button onclick="closeModals()" class="btn-action btn-gray">No / Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-config-pin" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <h3 class="neon-title">⚙ Configuración de Trabajador</h3>
+      <div class="form-group" style="margin-top:10px;">
+        <label>PIN ACTUAL</label>
+        <input type="password" id="pin-actual-input" placeholder="Tu PIN actual">
+      </div>
+      <div class="form-group">
+        <label>NUEVO PIN</label>
+        <input type="password" id="pin-nuevo-input" placeholder="Nuevo PIN">
+      </div>
+      <div class="form-group">
+        <label>CONFIRMAR NUEVO PIN</label>
+        <input type="password" id="pin-confirmar-input" placeholder="Repite nuevo PIN">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarNuevoPinSeguro()" class="btn-action btn-green">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-detalles" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <h3 class="neon-title" id="detalle-titulo">Detalles del Turno</h3>
+      <div id="detalle-contenido" style="margin: 15px 0; font-size: 0.9rem;"></div>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-resumen-pago" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
+      <h3 class="neon-title">📋 Resumen de Pago para Superiores</h3>
+      <p class="sub-title" id="resumen-rango-fechas" style="margin-bottom: 12px;"></p>
+      <div id="resumen-pago-contenido" style="height: auto; overflow: visible; margin-bottom: 15px; font-size: 0.9rem; background: rgba(15,23,42,0.8); padding: 15px; border-radius: 8px; border: 1px solid #334155;"></div>
+      <div class="modal-actions">
+        <button onclick="copiarResumenPago()" class="btn-action btn-orange">📋 Copiar Reporte</button>
+        <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-usuario" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <h3 id="modal-user-title" class="neon-title">Editar Usuario</h3>
+      <input type="hidden" id="edit-user-id">
+      <div class="form-group">
+        <label>Nombre de Usuario</label>
+        <input type="text" id="edit-user-nombre">
+      </div>
+      <div class="form-group">
+        <label>PIN de Acceso</label>
+        <input type="text" id="edit-user-pin">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo de Pago</label>
+          <select id="edit-user-tipo">
+            <option value="Horas">Horas</option>
+            <option value="Gasolina">Gasolina (Planta)</option>
+            <option value="Fijo">Fijo (Administrador)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tarifa ($) / Monto ($)</label>
+          <input type="number" step="0.1" id="edit-user-tarifa">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Cargo / Área</label>
+          <input type="text" id="edit-user-cargo" value="Operaciones">
+        </div>
+        <div class="form-group">
+          <label>Rol en Sistema</label>
+          <select id="edit-user-rol">
+            <option value="trabajador">Trabajador</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarUsuario()" class="btn-action btn-green">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-config-tarifas" class="modal-backdrop hidden">
+    <div class="modal-box glass-panel">
+      <h3 class="neon-title">⚙ Configuración Global de Tarifas</h3>
+      <p class="sub-title">Actualiza la tarifa general (aplica a quienes cobran por hora).</p>
+      <div class="form-group" style="margin-top:15px;">
+        <label>NUEVA TARIFA GENERAL ($ / HORA)</label>
+        <input type="number" step="0.1" id="global-tarifa-input" value="1.5">
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="aplicarTarifaGlobal()" class="btn-action btn-green">Aplicar a Todos (Horas)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-agregar-horas" class="modal-backdrop hidden">
     <div class="modal-box glass-panel">
       <h3 class="neon-title">+ Agregar Horas / Turno Manual</h3>
       <div class="form-group">
@@ -26,3 +294,7 @@
       </div>
     </div>
   </div>
+
+  <script src="app.js?v=40"></script>
+</body>
+</html>
