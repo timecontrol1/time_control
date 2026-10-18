@@ -15,8 +15,8 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE ENVÍO AUTOMÁTICO CON DOBLE PASARELA ANTIBLOQUEO
-async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
+// ENVÍO A WHATSAPP COMPLETAMENTE EN SEGUNDO PLANO (SIN FRENAR LA PÁGINA)
+function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
   const icono = accion === "INICIO" ? "🟢" : "🔴";
@@ -29,32 +29,21 @@ async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora)
                   `📌 *Estado:* Registrado en sistema`;
 
   const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
-
-  // Usamos un proxy público de redirección para saltar el bloqueo CORS del teléfono
   const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`;
 
-  try {
-    await fetch(proxyUrl, {
+  // Se ejecuta de manera asíncrona libre sin usar await para no congelar la pantalla
+  fetch(proxyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
+  }).catch(() => {
+    fetch(greenApiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chatId: WHATSAPP_GROUP_ID,
-        message: mensaje
-      })
-    });
-  } catch (error) {
-    // Intento de respaldo directo por si el proxy falla
-    try {
-      await fetch(greenApiUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
-      });
-    } catch (e) {
-      console.error("Fallo al enviar notificación automática a WhatsApp:", e);
-    }
-  }
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
+    }).catch(e => console.log("Aviso de red WhatsApp:", e));
+  });
 }
 
 // ESTADO GLOBAL
@@ -264,7 +253,8 @@ function confirmarToggleTurno() {
   }
 }
 
-async function ejecutarToggleTurno() {
+// EJECUCIÓN INSTANTÁNEA (ACTUALIZA LA PANTALLA DE INMEDIATO)
+function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -274,6 +264,7 @@ async function ejecutarToggleTurno() {
   const horaStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   if (!currentShift) {
+    // INICIAR TURNO
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
@@ -287,22 +278,27 @@ async function ejecutarToggleTurno() {
     currentShift = nuevoTurno;
     guardarTurnosLocales();
 
+    // Actualiza la interfaz visual al instante
+    actualizarBotonesTurno(true);
+    renderTablaTrabajador();
+
+    // Sincronización y notificación en segundo plano
     if (supabaseClient) {
-      try {
-        await supabaseClient.from("registros_turnos").insert([{
-          id_usuario: Number(currentUser.id),
-          fecha_inicio: fechaStr,
-          hora_entrada: now.toISOString(),
-          estado: "en_turno",
-          origen: "sistema"
-        }]);
-      } catch (e) {}
+      supabaseClient.from("registros_turnos").insert([{
+        id_usuario: Number(currentUser.id),
+        fecha_inicio: fechaStr,
+        hora_entrada: now.toISOString(),
+        estado: "en_turno",
+        origen: "sistema"
+      }]).then(() => {
+        syncDataFromSupabase().then(() => renderTablaTrabajador());
+      }).catch(e => console.log(e));
     }
 
-    // ENVÍO AUTOMÁTICO AL GRUPO
-    await enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
+    enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
+    // FINALIZAR TURNO
     const entrada = new Date(currentShift.hora_entrada);
     const salida = now;
     let diffMs = salida - entrada;
@@ -313,23 +309,26 @@ async function ejecutarToggleTurno() {
     currentShift.estado = "completado";
     guardarTurnosLocales();
 
+    const turnoIdAActualizar = currentShift.id;
+    currentShift = null;
+
+    // Actualiza la interfaz visual al instante
+    actualizarBotonesTurno(false);
+    renderTablaTrabajador();
+
+    // Sincronización y notificación en segundo plano
     if (supabaseClient) {
-      try {
-        await supabaseClient.from("registros_turnos").update({
-          hora_salida: salida.toISOString(),
-          horas_totales: parseFloat(diffHrs.toFixed(2)),
-          estado: "completado"
-        }).eq("id", currentShift.id);
-      } catch (e) {}
+      supabaseClient.from("registros_turnos").update({
+        hora_salida: salida.toISOString(),
+        horas_totales: parseFloat(diffHrs.toFixed(2)),
+        estado: "completado"
+      }).eq("id", turnoIdAActualizar).then(() => {
+        syncDataFromSupabase().then(() => renderTablaTrabajador());
+      }).catch(e => console.log(e));
     }
 
-    // ENVÍO AUTOMÁTICO AL GRUPO
-    await enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
-
-    currentShift = null;
+    enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
   }
-
-  await loadWorkerData();
 }
 
 function renderTablaTrabajador() {
