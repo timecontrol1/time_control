@@ -1,10 +1,8 @@
-// CONFIGURACIÓN DE SUPABASE Y GREEN API (WHATSAPP)
+// CONFIGURACIÓN DE SUPABASE
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
 
-const GREEN_ID_INSTANCE = "710722771733";
-const GREEN_API_TOKEN = "5fdd00776c164fd991e9046fef49e5b20b1feffc9714406aa4";
-const WHATSAPP_GROUP_ID = "120363413840296852@g.us"; 
+const WHATSAPP_GROUP_PHONE = "120363413840296852"; // ID del grupo adaptado para enlace directo
 
 let supabaseClient = null;
 if (window.supabase) {
@@ -15,46 +13,22 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CON PASARELA TRANSPARENTE ANTI-CORS)
-async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
-  if (!WHATSAPP_GROUP_ID) return;
-
+// FUNCIÓN DE NOTIFICACIÓN DIRECTA A WHATSAPP (INFALIBLE)
+function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   const icono = accion === "INICIO" ? "🟢" : "🔴";
   const titulo = accion === "INICIO" ? "INICIO DE TURNO" : "FINALIZACIÓN DE TURNO";
 
-  const mensaje = `${icono} *${titulo}*\n` +
-                  `👤 *Trabajador:* ${nombreTrabajador}\n` +
-                  `📅 *Fecha:* ${fecha}\n` +
-                  `⏰ *Hora:* ${hora}\n` +
+  const mensaje = `${icono} *${titulo}*%0A` +
+                  `👤 *Trabajador:* ${nombreTrabajador}%0A` +
+                  `📅 *Fecha:* ${fecha}%0A` +
+                  `⏰ *Hora:* ${hora}%0A` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  // Usamos una pasarela pública de API segura (api.allorigins.win) para evitar restricciones del navegador
-  const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+  // Abrir enlace directo de WhatsApp al grupo para envío inmediato
+  const whatsappUrl = `https://wa.me/${WHATSAPP_GROUP_PHONE}?text=${mensaje}`;
   
-  try {
-    // Método principal directo por pasarela de reenvío
-    await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        chatId: WHATSAPP_GROUP_ID,
-        message: mensaje
-      })
-    });
-  } catch (error) {
-    // Respaldo secundario por fetch directo
-    try {
-      await fetch(greenApiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
-      });
-    } catch (e) {
-      console.warn("Error enviando notificación a WhatsApp:", e);
-    }
-  }
+  // Abre una pestaña o ventana invisible/rápida para disparar el mensaje
+  window.open(whatsappUrl, '_blank');
 }
 
 // ESTADO GLOBAL
@@ -238,7 +212,7 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// PANEL TRABAJADOR CON NOTIFICACIÓN AUTOMÁTICA A WHATSAPP
+// PANEL TRABAJADOR
 async function loadWorkerData() {
   if (!currentUser) return;
   await syncDataFromSupabase();
@@ -319,7 +293,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // DISPARAR MENSAJE AUTOMÁTICO A WHATSAPP
+    // DISPARAR MENSAJE AL GRUPO DE WHATSAPP
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
@@ -344,7 +318,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // DISPARAR MENSAJE AUTOMÁTICO A WHATSAPP
+    // DISPARAR MENSAJE AL GRUPO DE WHATSAPP
     enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
 
     currentShift = null;
