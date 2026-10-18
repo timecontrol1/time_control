@@ -82,7 +82,7 @@
     </div>
   </div>
 
-  <!-- PANEL ADMINISTRADOR (REESTRUCTURADO EN EXACTAMENTE 2 ÁREAS) -->
+  <!-- PANEL ADMINISTRADOR -->
   <div id="sec-admin" class="container hidden">
     <div class="admin-header glass-panel">
       <div>
@@ -98,7 +98,7 @@
       </div>
     </div>
 
-    <!-- ÁREA 1: PERSONAL REGISTRADO, TARIFAS Y HORAS ACUMULADAS CON FILTRO -->
+    <!-- ÁREA 1: PERSONAL REGISTRADO, TARIFAS Y HORAS ACUMULADAS -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Personal Registrado, Tarifas y Horas Acumuladas</span>
@@ -156,8 +156,8 @@
       <h3 class="neon-title" id="confirm-title">¿Estás seguro?</h3>
       <p id="confirm-text" style="margin: 15px 0; color:#cbd5e1;">¿Deseas registrar esta acción de asistencia?</p>
       <div class="modal-actions" style="justify-content:center;">
-        <button onclick="closeModals()" class="btn-action btn-gray">No</button>
         <button onclick="ejecutarToggleTurno()" class="btn-action btn-green">Sí, Confirmar</button>
+        <button onclick="closeModals()" class="btn-action btn-gray">No / Cancelar</button>
       </div>
     </div>
   </div>
@@ -176,12 +176,6 @@
       <div class="form-group">
         <label>CONFIRMAR NUEVO PIN</label>
         <input type="password" id="pin-confirmar-input" placeholder="Repite nuevo PIN">
-      </div>
-      <hr style="border-color:#334155; margin:15px 0;">
-      <div class="form-group">
-        <label>💰 SIMULADOR ESTIMADO DE COBRO ($)</label>
-        <input type="number" step="0.1" id="w-monto-editable" value="0.00">
-        <small style="color:#94a3b8; display:block; margin-top:4px;">Esta simulación es únicamente personal y no afecta los registros del administrador.</small>
       </div>
       <div class="modal-actions">
         <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
