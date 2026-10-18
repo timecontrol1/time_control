@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// ENVÍO A WHATSAPP EN SEGUNDO PLANO LIBRE
+// ENVÍO DE WHATSAPP MEDIANTE PROXY PÚBLICO LIBRE DE BLOQUEOS
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -29,20 +29,13 @@ function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
                   `📌 *Estado:* Registrado en sistema`;
 
   const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`;
+  const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(greenApiUrl);
 
   fetch(proxyUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
-  }).catch(() => {
-    fetch(greenApiUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
-    }).catch(e => console.log(e));
-  });
+  }).catch(e => console.log("Error de red en notificación:", e));
 }
 
 // ESTADO GLOBAL
@@ -243,7 +236,7 @@ function confirmarToggleTurno() {
   if (!currentUser) return;
   const enTurno = !!currentShift;
   document.getElementById("confirm-title").innerText = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
-  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro যে deseas iniciar un nuevo turno de trabajo?";
+  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro que deseas iniciar un nuevo turno de trabajo?";
 
   const modalConfirm = document.getElementById("modal-confirm");
   if (modalConfirm) {
@@ -252,7 +245,6 @@ function confirmarToggleTurno() {
   }
 }
 
-// EJECUCIÓN INMEDIATA CON REFRESCO VISUAL FORZADO
 function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
@@ -263,7 +255,6 @@ function ejecutarToggleTurno() {
   const horaStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   if (!currentShift) {
-    // INICIAR TURNO
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
@@ -277,7 +268,6 @@ function ejecutarToggleTurno() {
     currentShift = nuevoTurno;
     guardarTurnosLocales();
 
-    // Refrescar UI al instante
     actualizarBotonesTurno(true);
     renderTablaTrabajador();
 
@@ -296,7 +286,6 @@ function ejecutarToggleTurno() {
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
-    // FINALIZAR TURNO
     const entrada = new Date(currentShift.hora_entrada);
     const salida = now;
     let diffMs = salida - entrada;
@@ -310,7 +299,6 @@ function ejecutarToggleTurno() {
 
     currentShift = null;
 
-    // Refrescar UI al instante
     actualizarBotonesTurno(false);
     renderTablaTrabajador();
 
