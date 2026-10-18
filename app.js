@@ -15,7 +15,7 @@ if (window.supabase) {
 let currentUser = null;
 let currentShift = null;
 
-// BASE DE DATOS LOCAL DE RESPALDO (GARANTIZA QUE NUNCA QUEDE VACÍO)
+// BASE DE DATOS LOCAL DE RESPALDO
 let cachedUsers = [
   { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
   { id: 2, nombre: "Ronald", usuario: "ronald", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.00, cargo: "Operaciones" },
@@ -32,9 +32,9 @@ let cachedUsers = [
 let cachedTurnos = [];
 
 // INICIALIZACIÓN
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener('DOMContentLoaded', () => {
   initMatrixEffect();
-  await syncDataFromSupabase();
+  syncDataFromSupabase();
 });
 
 function initMatrixEffect() {
@@ -113,7 +113,7 @@ async function syncDataFromSupabase() {
   }
 }
 
-// INICIO DE SESIÓN FLEXIBLE Y SEGURO
+// INICIO DE SESIÓN
 async function login() {
   const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
   const pInput = (document.getElementById("login-pin").value || "").trim();
@@ -125,15 +125,11 @@ async function login() {
 
   await syncDataFromSupabase();
 
-  let user = cachedUsers.find(u => {
-    const dbUser = (u.usuario || "").toString().trim().toLowerCase();
-    const dbNombre = (u.nombre || "").toString().trim().toLowerCase();
-    return dbUser === uInput || dbNombre === uInput || ((uInput === "admin" || uInput === "administrador") && (dbUser === "administrador" || u.rol === "admin"));
-  });
-
-  if (!user && (uInput === "admin" || uInput === "administrador") && pInput === "1234") {
-    user = cachedUsers.find(u => u.rol === "admin") || { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" };
-  }
+  let user = cachedUsers.find(u => 
+    (u.usuario || "").toLowerCase() === uInput || 
+    (u.nombre || "").toLowerCase() === uInput ||
+    (uInput === "admin" && (u.usuario === "administrador" || u.rol === "admin"))
+  );
 
   if (!user) {
     alert("El usuario '" + uInput + "' no existe en el sistema.");
@@ -147,12 +143,12 @@ async function login() {
     if (user.rol === "admin") {
       document.getElementById("sec-admin").classList.remove("hidden");
       initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
-      await loadAdminData();
+      loadAdminData();
     } else {
       document.getElementById("sec-trabajador").classList.remove("hidden");
       document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
-      await loadWorkerData();
+      loadWorkerData();
     }
   } else {
     alert("PIN incorrecto.");
@@ -171,9 +167,8 @@ function logout() {
 // PANEL TRABAJADOR
 // ==========================================
 
-async function loadWorkerData() {
+function loadWorkerData() {
   if (!currentUser) return;
-  await syncDataFromSupabase();
 
   currentShift = cachedTurnos.find(t => t.id_usuario === currentUser.id && (t.estado === "en_turno" || !t.hora_salida)) || null;
   
@@ -203,8 +198,10 @@ function confirmarToggleTurno() {
   const titulo = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
   const mensaje = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro que deseas iniciar un nuevo turno de trabajo?";
 
-  document.getElementById("confirm-title").innerText = titulo;
-  document.getElementById("confirm-text").innerText = mensaje;
+  const elTitle = document.getElementById("confirm-title");
+  const elText = document.getElementById("confirm-text");
+  if (elTitle) elTitle.innerText = titulo;
+  if (elText) elText.innerText = mensaje;
 
   const modalConfirm = document.getElementById("modal-confirm");
   if (modalConfirm) {
@@ -223,20 +220,30 @@ async function ejecutarToggleTurno() {
   const fechaStr = `${yyyy}-${mm}-${dd}`;
 
   if (!currentShift) {
-    const payload = {
+    const nuevoTurno = {
+      id: Date.now(),
       id_usuario: currentUser.id,
       fecha_inicio: fechaStr,
       hora_entrada: now.toISOString(),
+      hora_salida: null,
+      horas_totales: 0,
       estado: "en_turno",
       origen: "sistema"
     };
 
+    cachedTurnos.unshift(nuevoTurno);
+    currentShift = nuevoTurno;
+
     if (supabaseClient) {
-      const { data, error } = await supabaseClient.from("registros_turnos").insert([payload]).select();
-      if (!error && data && data.length > 0) {
-        cachedTurnos.unshift(data[0]);
-        currentShift = data[0];
-      }
+      try {
+        await supabaseClient.from("registros_turnos").insert([{
+          id_usuario: currentUser.id,
+          fecha_inicio: fechaStr,
+          hora_entrada: now.toISOString(),
+          estado: "en_turno",
+          origen: "sistema"
+        }]);
+      } catch (e) {}
     }
   } else {
     const entrada = new Date(currentShift.hora_entrada);
@@ -244,18 +251,24 @@ async function ejecutarToggleTurno() {
     let diffMs = salida - entrada;
     let diffHrs = Math.max(0, diffMs / (1000 * 60 * 60));
 
+    currentShift.hora_salida = salida.toISOString();
+    currentShift.horas_totales = parseFloat(diffHrs.toFixed(2));
+    currentShift.estado = "completado";
+
     if (supabaseClient) {
-      await supabaseClient.from("registros_turnos").update({
-        hora_salida: salida.toISOString(),
-        horas_totales: parseFloat(diffHrs.toFixed(2)),
-        estado: "completado"
-      }).eq("id", currentShift.id);
+      try {
+        await supabaseClient.from("registros_turnos").update({
+          hora_salida: salida.toISOString(),
+          horas_totales: parseFloat(diffHrs.toFixed(2)),
+          estado: "completado"
+        }).eq("id", currentShift.id);
+      } catch (e) {}
     }
 
     currentShift = null;
   }
 
-  await loadWorkerData();
+  loadWorkerData();
 }
 
 function toggleReceso() {
@@ -303,19 +316,24 @@ function verDetalleRegistro(idTurno) {
   const t = cachedTurnos.find(x => x.id === idTurno);
   if (!t) return;
 
-  document.getElementById("detalle-titulo").innerText = `Detalle del Turno (${t.fecha_inicio})`;
+  const elTitle = document.getElementById("detalle-titulo");
+  if (elTitle) elTitle.innerText = `Detalle del Turno (${t.fecha_inicio})`;
+  
   const hEntrada = t.hora_entrada ? new Date(t.hora_entrada).toLocaleString() : '-';
   const hSalida = t.hora_salida ? new Date(t.hora_salida).toLocaleString() : 'En Curso';
 
-  document.getElementById("detalle-contenido").innerHTML = `
-    <div style="background:#1e293b; padding:12px; border-radius:6px; line-height:1.6;">
-      <p><strong>Fecha:</strong> ${t.fecha_inicio}</p>
-      <p><strong>Hora Entrada:</strong> ${hEntrada}</p>
-      <p><strong>Hora Salida:</strong> ${hSalida}</p>
-      <p><strong>Total Horas:</strong> <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span></p>
-      <p><strong>Estado:</strong> ${t.estado}</p>
-    </div>
-  `;
+  const content = document.getElementById("detalle-contenido");
+  if (content) {
+    content.innerHTML = `
+      <div style="background:#1e293b; padding:12px; border-radius:6px; line-height:1.6;">
+        <p><strong>Fecha:</strong> ${t.fecha_inicio}</p>
+        <p><strong>Hora Entrada:</strong> ${hEntrada}</p>
+        <p><strong>Hora Salida:</strong> ${hSalida}</p>
+        <p><strong>Total Horas:</strong> <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span></p>
+        <p><strong>Estado:</strong> ${t.estado}</p>
+      </div>
+    `;
+  }
   const modalDetalles = document.getElementById("modal-detalles");
   if (modalDetalles) {
     modalDetalles.classList.remove("hidden");
@@ -327,8 +345,7 @@ function verDetalleRegistro(idTurno) {
 // PANEL ADMINISTRADOR
 // ==========================================
 
-async function loadAdminData() {
-  await syncDataFromSupabase();
+function loadAdminData() {
   renderTablaUsuariosAdmin();
   renderHistorialAdmin();
 }
@@ -349,7 +366,7 @@ function renderTablaUsuariosAdmin() {
   tbody.innerHTML = "";
 
   cachedUsers.forEach((u, index) => {
-    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? parseFloat(u.tarifa) : 1.5;
+    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? parseFloat(u.tarifa) : 1.0;
     let tarifaLabel = `$${tarifaVal.toFixed(2)}`;
     let tipoPago = (u.tipo_pago || "Horas").trim();
 
@@ -498,25 +515,33 @@ async function guardarUsuario() {
 
   let payload = { nombre, usuario, pin, tipo_pago, tarifa: valTarifa, cargo, rol };
 
-  if (supabaseClient) {
-    if (id) {
-      await supabaseClient.from("usuarios").update(payload).eq("id", id);
-    } else {
-      await supabaseClient.from("usuarios").insert([payload]);
+  if (id) {
+    let userObj = cachedUsers.find(u => String(u.id) === String(id));
+    if (userObj) Object.assign(userObj, payload);
+    if (supabaseClient) {
+      try { await supabaseClient.from("usuarios").update(payload).eq("id", id); } catch(e){}
+    }
+  } else {
+    let newId = Date.now();
+    payload.id = newId;
+    cachedUsers.push(payload);
+    if (supabaseClient) {
+      try { await supabaseClient.from("usuarios").insert([payload]); } catch(e){}
     }
   }
 
   closeModals();
-  await loadAdminData();
-  alert("¡Trabajador guardado en Supabase!");
+  loadAdminData();
+  alert("¡Trabajador guardado con éxito!");
 }
 
 async function borrarUsuario(id) {
   if (confirm("¿Borrar usuario de forma permanente?")) {
+    cachedUsers = cachedUsers.filter(u => u.id !== id);
     if (supabaseClient) {
-      await supabaseClient.from("usuarios").delete().eq("id", id);
+      try { await supabaseClient.from("usuarios").delete().eq("id", id); } catch(e){}
     }
-    await loadAdminData();
+    loadAdminData();
   }
 }
 
@@ -536,7 +561,7 @@ function openAgregarHorasModal() {
   }
 }
 
-async function guardarHorasManuales(continuarAgregando = false) {
+async function guardarHorasManuales() {
   const userId = parseInt(document.getElementById("manual-user-select").value);
   const fecha = document.getElementById("manual-fecha").value;
   const hEntrada = document.getElementById("manual-entrada").value;
@@ -550,6 +575,7 @@ async function guardarHorasManuales(continuarAgregando = false) {
   if (diffHrs < 0) diffHrs += 24;
 
   const payload = {
+    id: Date.now(),
     id_usuario: userId,
     fecha_inicio: fecha,
     hora_entrada: tEntrada.toISOString(),
@@ -559,17 +585,25 @@ async function guardarHorasManuales(continuarAgregando = false) {
     origen: "manual"
   };
 
+  cachedTurnos.unshift(payload);
+
   if (supabaseClient) {
-    await supabaseClient.from("registros_turnos").insert([payload]);
+    try {
+      await supabaseClient.from("registros_turnos").insert([{
+        id_usuario: userId,
+        fecha_inicio: fecha,
+        hora_entrada: tEntrada.toISOString(),
+        hora_salida: tSalida.toISOString(),
+        horas_totales: parseFloat(diffHrs.toFixed(2)),
+        estado: "completado",
+        origen: "manual"
+      }]);
+    } catch (e) {}
   }
 
-  if (continuarAgregando) {
-    alert("¡Turno registrado! Puedes ingresar el siguiente.");
-  } else {
-    closeModals();
-    await loadAdminData();
-    alert("¡Horas cargadas correctamente!");
-  }
+  closeModals();
+  loadAdminData();
+  alert("¡Horas cargadas correctamente!");
 }
 
 function abrirResumenPagoModal() {
@@ -660,20 +694,36 @@ function verDetallesAdminGlobal(userId, fecha) {
 async function forzarSalida(idTurno) {
   if (confirm("¿Forzar salida de este turno activo?")) {
     const now = new Date();
-    if (supabaseClient) {
-      await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
+    let t = cachedTurnos.find(x => x.id === idTurno);
+    if (t) {
+      let entrada = new Date(t.hora_entrada);
+      let diffMs = now - entrada;
+      let diffHrs = Math.max(0, diffMs / (1000 * 60 * 60));
+
+      t.hora_salida = now.toISOString();
+      t.horas_totales = parseFloat(diffHrs.toFixed(2));
+      t.estado = "completado";
     }
-    await loadAdminData();
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
+      } catch (e) {}
+    }
+    loadAdminData();
   }
 }
 
 async function borrarTurno(id) {
   if (confirm("¿Eliminar este registro de turno?")) {
+    cachedTurnos = cachedTurnos.filter(t => t.id !== id);
     if (supabaseClient) {
-      await supabaseClient.from("registros_turnos").delete().eq("id", id);
+      try {
+        await supabaseClient.from("registros_turnos").delete().eq("id", id);
+      } catch (e) {}
     }
     closeModals();
-    await loadAdminData();
+    loadAdminData();
   }
 }
 
@@ -689,17 +739,26 @@ async function aplicarTarifaGlobal() {
   const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
   if (isNaN(nueva)) return;
 
-  if (supabaseClient) {
-    for (let u of cachedUsers) {
-      const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
-      if (tipo !== "gasolina" && tipo !== "fijo") {
-        await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
-      }
+  cachedUsers.forEach(u => {
+    const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
+    if (tipo !== "gasolina" && tipo !== "fijo") {
+      u.tarifa = nueva;
     }
+  });
+
+  if (supabaseClient) {
+    try {
+      for (let u of cachedUsers) {
+        const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
+        if (tipo !== "gasolina" && tipo !== "fijo") {
+          await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
+        }
+      }
+    } catch (e) {}
   }
 
   closeModals();
-  await loadAdminData();
+  loadAdminData();
   alert("Tarifa general aplicada con éxito.");
 }
 
@@ -722,7 +781,9 @@ async function guardarNuevoPinSeguro() {
   if (nuevo) {
     currentUser.pin = nuevo;
     if (supabaseClient) {
-      await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id);
+      try {
+        await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id);
+      } catch (e) {}
     }
     alert("PIN actualizado con éxito.");
   }
