@@ -3,56 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Administración - Control de Asistencias</title>
+    <title>Panel de Administración - Control General de Nómina y Turnos</title>
     <style>
-        body { background-color: #0d1117; color: #c9d1d9; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .card-historial-global { background: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d; margin-top: 20px; }
-        h3 { margin-top: 0; color: #f0f6fc; }
-        .table-asistencias { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .table-asistencias th, .table-asistencias td { padding: 12px; text-align: left; border-bottom: 1px solid #30363d; font-size: 14px; }
-        .table-asistencias th { color: #8b949e; font-weight: bold; }
-        .btn-detalles { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-        .btn-detalles:hover { background-color: #30363d; }
+        :root {
+            --bg-main: #0d1117;
+            --bg-card: #161b22;
+            --bg-element: #21262d;
+            --border-color: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-green: #238636;
+            --accent-red: #da3633;
+            --accent-blue: #1f6feb;
+        }
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .admin-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        .header-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-title h2 { margin: 0; color: #f0f6fc; font-size: 22px; }
+        .subtext { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
         
-        /* Estilos del Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; }
-        .modal-content { background: #161b22; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; border: 1px solid #30363d; }
-        .sesion-card-item { background: #21262d; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
-        .btn-cerrar { background-color: #da3633; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
-        .btn-eliminar-sesion { background-color: #da3633; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        /* Controles de Filtros y Botones */
+        .controls-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: var(--bg-element);
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-group label { font-size: 12px; color: var(--text-muted); }
+        .filter-group input, .filter-group select {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background-color: var(--accent-blue); color: white; }
+        .btn-success { background-color: var(--accent-green); color: white; }
+        .btn-danger { background-color: var(--accent-red); color: white; }
+        .btn:hover { opacity: 0.9; }
+
+        /* Tablas */
+        .table-container { overflow-x: auto; margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+        th { color: var(--text-muted); font-weight: 600; background: rgba(255,255,255,0.02); }
+        tr:hover { background: rgba(255,255,255,0.01); }
+
+        /* Modales */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+        .sesion-row {
+            background: var(--bg-element);
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
     </style>
 </head>
 <body>
 
-    <!-- Sección: Historial Global de Asistencias -->
-    <div class="card-historial-global">
-        <h3>Historial Global de Asistencias</h3>
-        <table class="table-asistencias">
-            <thead>
-                <tr>
-                    <th>Trabajador</th>
-                    <th>Fecha</th>
-                    <th>Estado / Horas</th>
-                    <th>Acción</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-historial-cuerpo">
-                <!-- Los datos se inyectarán correctamente aquí en filas separadas -->
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Modal de Reporte Detallado -->
-    <div id="modal-detalles" class="modal-overlay">
-        <div class="modal-content">
-            <h3 id="titulo-modal-fecha">Reporte Detallado</h3>
-            <div id="contenido-sesiones-dia">
-                <!-- Listado de entradas y salidas individuales -->
+<div class="container">
+    <div class="admin-panel">
+        
+        <!-- Cabecera -->
+        <div class="header-title">
+            <div>
+                <h2>Panel de Administración</h2>
+                <div class="subtext">Control General de Nómina y Turnos</div>
             </div>
-            <button class="btn-cerrar" onclick="cerrarModalDetalles()">Cerrar</button>
+            <div>
+                <span id="reloj-actual" style="font-size: 13px; color: #3fb950; font-weight: bold;">🇻🇪 Hora Actual</span>
+            </div>
         </div>
-    </div>
 
-    <script src="app.js"></script>
+        <!-- Barra de Filtros y Acciones Principales -->
+        <div class="controls-bar">
+            <div class="filter-group">
+                <label>Filtrar Desde:</label>
+                <input type="date" id="filtro-desde">
+            </div>
+            <div class="filter-group">
+                <label>Filtrar Hasta:</label>
+                <input type="date" id="filtro-hasta">
+            </div>
+            <div style="margin-left: auto; display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="abrirModalTrabajador()">+ Nuevo Trabajador</button>
+                <button class="btn btn-primary" onclick="abrirModalHorasManual()">+ Cargar Horas Manual</button>
+                <button class="btn btn-success" onclick="generarResumenPago()">📊 Resumen de Pago</button>
+            </div>
+        </div>
+
+        <!-- Listado de Trabajadores & Nómina -->
+        <h3>Listado de Trabajadores & Nómina</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>PIN</th>
+                        <th>Tipo</th>
+                        <th>Tarifa</th>
+                        <th>Cargo</th>
+                        <th>Horas Periodo</th>
+                        <th>Total a Pagar</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-trabajadores-cuerpo">
+                    <!-- Dinámico por JS -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Historial Global de Asistencias (Una línea por día por persona) -->
+        <h3>Historial Global de Asistencias</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Trabajador</th>
+                        <th>Fecha</th>
+                        <th>Estado / Horas</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-historial-cuerpo">
+                    <!-- Dinámico por JS -->
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+<!-- Modal de Detalles de Sesiones -->
+<div id="modal-detalles" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="modal-titulo" style="margin-top:0;">Reporte Detallado</h3>
+        <div class="subtext" style="margin-bottom: 15px;">Sesiones individuales del día:</div>
+        <div id="modal-lista-sesiones" style="max-height: 300px; overflow-y: auto;">
+            <!-- Dinámico por JS -->
+        </div>
+        <button class="btn btn-danger" style="width: 100%; margin-top: 15px;" onclick="cerrarModalDetalles()">Cerrar</button>
+    </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
