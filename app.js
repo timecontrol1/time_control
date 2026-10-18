@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (SIN BLOQUEO DE NAVEGADOR / CORS)
+// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CON PASARELA TRANSPARENTE ANTI-CORS)
 async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -28,31 +28,31 @@ async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora)
                   `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  const url = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
-
-  const payload = JSON.stringify({
-    chatId: WHATSAPP_GROUP_ID,
-    message: mensaje
-  });
-
+  // Usamos una pasarela pública de API segura (api.allorigins.win) para evitar restricciones del navegador
+  const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+  
   try {
-    // Usamos text/plain para evitar que el navegador envíe preflight de CORS y bloquee la petición
-    await fetch(url, {
+    // Método principal directo por pasarela de reenvío
+    await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=UTF-8" },
-      body: payload
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chatId: WHATSAPP_GROUP_ID,
+        message: mensaje
+      })
     });
   } catch (error) {
-    // Intento secundario con no-cors por si el entorno es restringido
+    // Respaldo secundario por fetch directo
     try {
-      await fetch(url, {
+      await fetch(greenApiUrl, {
         method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: payload
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
       });
     } catch (e) {
-      console.warn("Error enviando mensaje a WhatsApp:", e);
+      console.warn("Error enviando notificación a WhatsApp:", e);
     }
   }
 }
@@ -238,7 +238,7 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// PANEL TRABAJADOR CON NOTIFICACIÓN DE WHATSAPP
+// PANEL TRABAJADOR CON NOTIFICACIÓN AUTOMÁTICA A WHATSAPP
 async function loadWorkerData() {
   if (!currentUser) return;
   await syncDataFromSupabase();
@@ -293,7 +293,7 @@ async function ejecutarToggleTurno() {
   const horaStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   if (!currentShift) {
-    // INICIAR TURNO
+    // INICIAR TURNO Y GUARDAR EN SUPABASE
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
@@ -319,11 +319,11 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // ENVÍO DE ALERTA A WHATSAPP
+    // DISPARAR MENSAJE AUTOMÁTICO A WHATSAPP
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
-    // FINALIZAR TURNO
+    // FINALIZAR TURNO Y GUARDAR EN SUPABASE
     const entrada = new Date(currentShift.hora_entrada);
     const salida = now;
     let diffMs = salida - entrada;
@@ -344,7 +344,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // ENVÍO DE ALERTA A WHATSAPP
+    // DISPARAR MENSAJE AUTOMÁTICO A WHATSAPP
     enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
 
     currentShift = null;
