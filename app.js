@@ -93,7 +93,6 @@ async function login() {
 
   if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
 
-  // 1. Acceso de rescate inmediato para Administrador
   if ((uInput === "admin" || uInput === "administrador") && pInput === "1234") {
     currentUser = { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" };
     document.getElementById("sec-login").classList.add("hidden");
@@ -105,7 +104,6 @@ async function login() {
 
   await syncUsersFromSupabase();
 
-  // 2. Búsqueda flexible por usuario o por nombre
   const user = cachedUsers.find(u => {
     const dbUser = (u.usuario || "").toString().trim().toLowerCase();
     const dbNombre = (u.nombre || "").toString().trim().toLowerCase();
@@ -149,12 +147,14 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
+// CORRECCIÓN EXACTA DE RANGO LUNES A DOMINGO
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
-  
-  const lunes = new Date(now.setDate(diffToMonday));
+  const d = new Date();
+  const day = d.getDay();
+  // day es: 0=Domingo, 1=Lunes, 2=Martes, ..., 6=Sábado
+  const diffToMonday = d.getDate() - (day === 0 ? 6 : day - 1);
+
+  const lunes = new Date(d.setDate(diffToMonday));
   const domingo = new Date(lunes);
   domingo.setDate(lunes.getDate() + 6);
 
@@ -217,7 +217,7 @@ async function loadWorkerData() {
       <td>${d.primeraEntrada ? new Date(d.primeraEntrada).toLocaleTimeString() : '-'}</td>
       <td>${!d.ultimaSalida ? '<span class="txt-green">En Curso</span>' : new Date(d.ultimaSalida).toLocaleTimeString()}</td>
       <td class="txt-green">${colTexto}</td>
-      <td><button onclick='verDetallesDia("${fecha}", ${JSON.stringify(d.turnosDia)})' class="btn-action btn-gray">Ver Detalles</button></td>
+      <td><button onclick="verDetallesDiaGlobal('${fecha}')" class="btn-action btn-gray">Ver Detalles</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -232,7 +232,9 @@ async function loadWorkerData() {
   }
 }
 
-function verDetallesDia(fecha, listaTurnos) {
+function verDetallesDiaGlobal(fecha) {
+  if (!currentUser) return;
+  const listaTurnos = cachedTurnos.filter(t => t.id_usuario === currentUser.id && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Desglose de Turnos: ${fecha}`;
   let html = `<p>Sesiones iniciadas el <strong>${fecha}</strong>: ${listaTurnos.length}</p><hr style="border-color:#334155; margin:10px 0;">`;
   
@@ -506,9 +508,8 @@ function loadAsistenciasAdminConsolidado() {
     const key = `${t.id_usuario}_${fecha}`;
 
     if (!agrupado[key]) {
-      agrupado[key] = { nombre: uNombre, fecha: fecha, totalHoras: 0, activo: false, turnoActivoId: null, lista: [] };
+      agrupado[key] = { userId: t.id_usuario, nombre: uNombre, fecha: fecha, totalHoras: 0, activo: false, turnoActivoId: null };
     }
-    agrupado[key].lista.push(t);
     agrupado[key].totalHoras += parseFloat(t.horas_totales || 0);
     if (t.estado === 'en_turno') {
       agrupado[key].activo = true;
@@ -528,7 +529,7 @@ function loadAsistenciasAdminConsolidado() {
         ${item.activo ? '<span class="pulse-dot" title="Activo"></span><span class="txt-green">En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}
       </td>
       <td>
-        <button onclick='verDetallesAdmin(${JSON.stringify(item.lista)})' class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
+        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
         ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;" title="Forzar salida">Forzar Salida</button>` : ''}
       </td>
     `;
@@ -536,7 +537,8 @@ function loadAsistenciasAdminConsolidado() {
   });
 }
 
-function verDetallesAdmin(listaTurnos) {
+function verDetallesAdminGlobal(userId, fecha) {
+  const listaTurnos = cachedTurnos.filter(t => t.id_usuario === userId && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado de Turnos`;
   let html = `<p>Sesiones:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
