@@ -30,7 +30,7 @@ let cachedUsers = [
   { id: 10, nombre: "Planta", usuario: "planta", pin: "1234", rol: "trabajador", tipo_pago: "Gasolina", tarifa: 0.50, cargo: "Generador" }
 ];
 
-// INICIALIZACIÓN DE LA PÁGINA
+// INICIALIZACIÓN
 window.addEventListener('DOMContentLoaded', () => {
   initMatrixEffect();
 });
@@ -163,6 +163,7 @@ async function loadWorkerData() {
     }
   }
 
+  // Detectar si hay turno activo
   const activo = cachedTurnos.find(t => t.estado === "en_turno" || !t.hora_salida);
   currentShift = activo || null;
   
@@ -186,7 +187,7 @@ function actualizarBotonesTurno(enTurno) {
   }
 }
 
-// ABRIR VENTANA EMERGENTE DE CONFIRMACIÓN
+// ABRIR VENTANA EMERGENTE
 function confirmarToggleTurno() {
   if (!currentUser) return;
 
@@ -203,11 +204,11 @@ function confirmarToggleTurno() {
 
   if (modalConfirm) {
     modalConfirm.classList.remove("hidden");
-    modalConfirm.style.display = "flex"; // Forzar visibilidad
+    modalConfirm.style.display = "flex";
   }
 }
 
-// EJECUCIÓN TRAS APRETAR "SÍ" EN LA VENTANA EMERGENTE
+// EJECUCIÓN AL PRESIONAR SÍ
 async function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
@@ -232,17 +233,21 @@ async function ejecutarToggleTurno() {
         const { data, error } = await supabaseClient.from("registros_turnos").insert([nuevoTurno]).select();
         if (!error && data && data.length > 0) {
           cachedTurnos.unshift(data[0]);
+          currentShift = data[0];
         } else {
           nuevoTurno.id = Date.now();
           cachedTurnos.unshift(nuevoTurno);
+          currentShift = nuevoTurno;
         }
       } catch (e) {
         nuevoTurno.id = Date.now();
         cachedTurnos.unshift(nuevoTurno);
+        currentShift = nuevoTurno;
       }
     } else {
       nuevoTurno.id = Date.now();
       cachedTurnos.unshift(nuevoTurno);
+      currentShift = nuevoTurno;
     }
   } else {
     // FINALIZAR TURNO ACTIVO
@@ -266,12 +271,13 @@ async function ejecutarToggleTurno() {
     currentShift.hora_salida = salida.toISOString();
     currentShift.horas_totales = parseFloat(diffHrs.toFixed(2));
     currentShift.estado = "completado";
+    currentShift = null; // Limpiar turno activo
   }
 
   await loadWorkerData();
 }
 
-// BOTÓN PAUSA / RECESO
+// PAUSA / RECESO
 function toggleReceso() {
   if (!currentShift) {
     alert("Primero debes iniciar turno antes de pausar.");
@@ -280,7 +286,7 @@ function toggleReceso() {
   alert("Pausa / Receso registrado.");
 }
 
-// RENDERIZACIÓN DE REGISTROS
+// RENDERIZAR TABLA
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde").value;
   const hasta = document.getElementById("w-filtro-hasta").value;
@@ -316,7 +322,7 @@ function renderTablaTrabajador() {
   }
 }
 
-// DETALLES
+// DETALLE
 function verDetalleRegistro(idTurno) {
   const t = cachedTurnos.find(x => x.id === idTurno);
   if (!t) return;
@@ -352,7 +358,6 @@ function closeModals() {
   });
 }
 
-// FUNCIONES SECUNDARIAS
 function loadAdminData() {}
 function openConfigPinModal() {
   const modalPin = document.getElementById("modal-config-pin");
