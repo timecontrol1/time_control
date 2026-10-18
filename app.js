@@ -15,38 +15,41 @@ if (window.supabase) {
   }
 }
 
-// FORMATO DE HORA CORREGIDO (CORRIGE LAS 4 HORAS DE MÁS DE SUPABASE/UTC)
-function parseFechaVZLA(val) {
-  if (!val) return new Date();
-  if (typeof val === 'number') return new Date(val);
-  
-  let d = new Date(val);
-  // Si la fecha viene en texto ISO con "Z" (UTC de Supabase), restamos las 4 horas para adaptarla a Venezuela
-  if (typeof val === 'string' && (val.includes('Z') || val.includes('+00'))) {
-    d = new Date(d.getTime() - (4 * 60 * 60 * 1000));
-  }
-  return d;
+// CONVERSIÓN SEGURA DE FECHAS Y ZONA HORARIA VENEZUELA
+function parseToMs(val) {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-function getVenezuelaDateString(d = new Date()) {
-  const dt = parseFechaVZLA(d);
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, '0');
-  const dd = String(dt.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function getVenezuelaTimeString(d = new Date()) {
+function getVenezuelaTimeString(val = new Date()) {
   try {
-    const dt = parseFechaVZLA(d);
-    let hours = dt.getHours();
-    const minutes = String(dt.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+    const ms = parseToMs(val);
+    const d = ms ? new Date(ms) : new Date();
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Caracas',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(d);
   } catch(e) { 
     return '--:--'; 
+  }
+}
+
+function getVenezuelaDateString(val = new Date()) {
+  try {
+    const ms = parseToMs(val);
+    const d = ms ? new Date(ms) : new Date();
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Caracas',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(d); // Formato YYYY-MM-DD
+  } catch(e) { 
+    return new Date().toISOString().split('T')[0]; 
   }
 }
 
@@ -163,10 +166,14 @@ function initMatrixEffect() {
 
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const date = now.getDate();
-  const dayOfWeek = now.getDay();
+  const vzlaDateStr = getVenezuelaDateString(now);
+  const parts = vzlaDateStr.split('-');
+  const localToday = new Date(parts[0], parts[1] - 1, parts[2]);
+
+  const year = localToday.getFullYear();
+  const month = localToday.getMonth();
+  const date = localToday.getDate();
+  const dayOfWeek = localToday.getDay();
   const distanceToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
   const monday = new Date(year, month, date + distanceToMonday);
   const sunday = new Date(year, month, date + distanceToMonday + 6);
@@ -296,7 +303,7 @@ function ejecutarToggleTurno() {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: now.getTime(),
+      hora_entrada: now.toISOString(),
       estado: "en_turno",
       origen: "sistema"
     };
@@ -312,7 +319,7 @@ function ejecutarToggleTurno() {
       supabaseClient.from("registros_turnos").insert([{
         id_usuario: Number(currentUser.id),
         fecha_inicio: fechaStr,
-        hora_entrada: new Date(now.getTime()).toISOString(),
+        hora_entrada: now.toISOString(),
         estado: "en_turno",
         origen: "sistema"
       }]).then(() => {
@@ -323,20 +330,14 @@ function ejecutarToggleTurno() {
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
-    let entradaMs = typeof currentShift.hora_entrada === 'number' 
-      ? currentShift.hora_entrada 
-      : parseFechaVZLA(currentShift.hora_entrada).getTime();
-
+    let entradaMs = parseToMs(currentShift.hora_entrada);
     let salidaMs = now.getTime();
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
-    
-    // Guardamos valor con decimales precisos para no perder minutos
-    let horasTotales = parseFloat(diffHrs.toFixed(4));
 
     const turnoIdAActualizar = currentShift.id;
-    currentShift.hora_salida = salidaMs;
-    currentShift.horas_totales = horasTotales;
+    currentShift.hora_salida = now.toISOString();
+    currentShift.horas_totales = parseFloat(diffHrs.toFixed(4));
     currentShift.estado = "completado";
     guardarTurnosLocales();
 
@@ -347,8 +348,8 @@ function ejecutarToggleTurno() {
 
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").update({
-        hora_salida: new Date(salidaMs).toISOString(),
-        horas_totales: horasTotales,
+        hora_salida: now.toISOString(),
+        horas_totales: parseFloat(diffHrs.toFixed(4)),
         estado: "completado"
       }).eq("id", turnoIdAActualizar).then(() => {
         syncDataFromSupabase().then(() => renderTablaTrabajador());
@@ -366,53 +367,85 @@ function renderTablaTrabajador() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const filtrados = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
+  const filtrados = cachedTurnos.filter(t => {
+    if (String(t.id_usuario) !== String(currentUser.id)) return false;
+    const fInicio = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    return (!desde || fInicio >= desde) && (!hasta || fInicio <= hasta);
+  });
+
   let porFecha = {};
   
   filtrados.forEach(t => {
-    if (!porFecha[t.fecha_inicio]) {
-      porFecha[t.fecha_inicio] = { fecha: t.fecha_inicio, totalHoras: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
+    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    if (!porFecha[fKey]) {
+      porFecha[fKey] = { fecha: fKey, totalMinutos: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
     }
-    let grupo = porFecha[t.fecha_inicio];
-    grupo.totalHoras += parseFloat(t.horas_totales || 0);
-    
-    let entradaObj = parseFechaVZLA(t.hora_entrada);
-    let salidaObj = t.hora_salida ? parseFechaVZLA(t.hora_salida) : null;
+    let grupo = porFecha[fKey];
 
-    if (t.hora_entrada && (!grupo.primeraEntrada || entradaObj < parseFechaVZLA(grupo.primeraEntrada))) {
+    // Cálculo robusto de minutos por cada turno usando timestamps directos
+    let entMs = parseToMs(t.hora_entrada);
+    let salMs = parseToMs(t.hora_salida);
+    if (entMs && salMs && salMs > entMs) {
+      let diffMins = (salMs - entMs) / (1000 * 60);
+      grupo.totalMinutos += diffMins;
+    } else if (t.horas_totales) {
+      grupo.totalMinutos += parseFloat(t.horas_totales) * 60;
+    }
+
+    if (entMs && (!grupo.primeraEntrada || entMs < parseToMs(grupo.primeraEntrada))) {
       grupo.primeraEntrada = t.hora_entrada;
     }
-    if (salidaObj) {
-      if (!grupo.ultimaSalida || salidaObj > parseFechaVZLA(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
+    if (salMs) {
+      if (!grupo.ultimaSalida || salMs > parseToMs(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
     } else {
       grupo.enCurso = true;
     }
   });
 
-  let totalPeriodo = 0;
+  let totalMinutosPeriodo = 0;
+
   Object.values(porFecha).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(g => {
-    totalPeriodo += g.totalHoras;
+    totalMinutosPeriodo += g.totalMinutos;
+    let horasDia = g.totalMinutos / 60;
+
     const hEntrada = g.primeraEntrada ? getVenezuelaTimeString(g.primeraEntrada) : '-';
     const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getVenezuelaTimeString(g.ultimaSalida) : '-');
+
+    let totalMinsRedondeados = Math.round(g.totalMinutos);
+    let horasDisplay = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${totalMinsRedondeados} min`;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${g.fecha}</strong></td>
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
-      <td class="txt-green">${g.totalHoras.toFixed(2)} hrs</td>
+      <td class="txt-green">${horasDisplay}</td>
       <td><button onclick="verDetalleDia('${g.fecha}')" class="btn-action btn-gray">Detalle</button></td>
     `;
     tbody.appendChild(tr);
   });
 
+  let totalHorasPeriodo = totalMinutosPeriodo / 60;
+  let totalMinsPeriodoRedondeados = Math.round(totalMinutosPeriodo);
+  
   const labelTotal = document.getElementById("w-total-periodo");
-  if (labelTotal) labelTotal.innerText = `${totalPeriodo.toFixed(2)} hrs`;
+  if (labelTotal) {
+    if (totalMinutosPeriodo > 0 && totalHorasPeriodo < 1) {
+      labelTotal.innerText = `${totalMinsPeriodoRedondeados} min (${totalHorasPeriodo.toFixed(2)} hrs)`;
+    } else {
+      labelTotal.innerText = `${totalHorasPeriodo.toFixed(2)} hrs`;
+    }
+  }
   calcularSimuladorCobro();
 }
 
 function verDetalleDia(fecha) {
-  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha);
+  const listaTurnos = cachedTurnos.filter(t => {
+    if (String(t.id_usuario) !== String(currentUser.id)) return false;
+    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    return fKey === fecha;
+  });
+
   document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
@@ -420,16 +453,16 @@ function verDetalleDia(fecha) {
     let ent = t.hora_entrada ? getVenezuelaTimeString(t.hora_entrada) : '-';
     let sal = t.hora_salida ? getVenezuelaTimeString(t.hora_salida) : 'En curso';
     
-    // Cálculo en tiempo real si el turno está en curso o dura pocos minutos
-    let hrsText = "0.00 hrs";
-    if (t.horas_totales > 0) {
-      hrsText = `${parseFloat(t.horas_totales).toFixed(2)} hrs`;
-    } else if (t.hora_entrada && t.hora_salida) {
-      let entMs = parseFechaVZLA(t.hora_entrada).getTime();
-      let salMs = parseFechaVZLA(t.hora_salida).getTime();
-      let mins = Math.round((salMs - entMs) / (1000 * 60));
-      hrsText = mins > 0 ? `${mins} min` : `0.00 hrs`;
+    let mins = 0;
+    let entMs = parseToMs(t.hora_entrada);
+    let salMs = parseToMs(t.hora_salida);
+    if (entMs && salMs && salMs > entMs) {
+      mins = Math.round((salMs - entMs) / (1000 * 60));
+    } else if (t.horas_totales) {
+      mins = Math.round(t.horas_totales * 60);
     }
+
+    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
 
     html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
             `<small>Entrada: ${ent}</small><br>` +
@@ -451,7 +484,10 @@ function calcularSimuladorCobro() {
   const labelPeriodo = document.getElementById("w-total-periodo");
   if (!inputTarifa || !labelTotal || !labelPeriodo) return;
   let tarifa = parseFloat(inputTarifa.value) || 0;
-  let horas = parseFloat(labelPeriodo.innerText) || 0;
+  
+  let match = labelPeriodo.innerText.match(/([0-9.]+)\s*hrs/);
+  let horas = match ? parseFloat(match[1]) : (parseFloat(labelPeriodo.innerText) || 0);
+
   labelTotal.innerText = `$${(horas * tarifa).toFixed(2)}`;
   if (labelDetalle) labelDetalle.innerText = `Suma de ${horas.toFixed(2)} hrs`;
 }
@@ -469,7 +505,11 @@ function renderTablaUsuariosAdmin() {
   let d2 = hasta ? new Date(hasta) : new Date();
   let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
 
-  const turnosFiltrados = cachedTurnos.filter(t => (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
+  const turnosFiltrados = cachedTurnos.filter(t => {
+    const fInicio = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    return (!desde || fInicio >= desde) && (!hasta || fInicio <= hasta);
+  });
+
   const tbody = document.getElementById("tabla-usuarios");
   if (!tbody) return;
   tbody.innerHTML = "";
@@ -477,7 +517,19 @@ function renderTablaUsuariosAdmin() {
   cachedUsers.forEach((u, index) => {
     let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
     let tipoPago = (u.tipo_pago || "Horas").trim();
-    let totalHoras = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id)).reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    
+    // Suma exacta basada en minutos para el admin
+    let totalMinsUser = 0;
+    turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id)).forEach(t => {
+      let entMs = parseToMs(t.hora_entrada);
+      let salMs = parseToMs(t.hora_salida);
+      if (entMs && salMs && salMs > entMs) {
+        totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.horas_totales) {
+        totalMinsUser += parseFloat(t.horas_totales) * 60;
+      }
+    });
+    let totalHoras = totalMinsUser / 60;
     
     let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
     let tarifaLabel = tipoPago === "Gasolina" ? "1.4L/h × $0.50" : tipoPago === "Fijo" ? `$${tarifaVal.toFixed(2)} / sem` : `$${tarifaVal.toFixed(2)}`;
@@ -492,7 +544,7 @@ function renderTablaUsuariosAdmin() {
       <td>${tipoPago}</td>
       <td class="txt-green">${tarifaLabel}</td>
       <td>${u.cargo || 'Operaciones'}</td>
-      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : totalHoras.toFixed(2) + ' hrs'}</strong></td>
+      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : (totalHoras < 1 ? Math.round(totalMinsUser) + ' min' : totalHoras.toFixed(2) + ' hrs')}</strong></td>
       <td class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
       <td>
         <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon">✏️</button>
@@ -507,11 +559,19 @@ function renderHistorialAdmin() {
   let agrupado = {};
   cachedTurnos.forEach(t => {
     const userObj = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
-    const key = `${t.id_usuario}_${t.fecha_inicio}`;
+    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    const key = `${t.id_usuario}_${fKey}`;
     if (!agrupado[key]) {
-      agrupado[key] = { userId: t.id_usuario, nombre: userObj ? userObj.nombre : 'Desconocido', fecha: t.fecha_inicio, totalHoras: 0, activo: false, turnoActivoId: null };
+      agrupado[key] = { userId: t.id_usuario, nombre: userObj ? userObj.nombre : 'Desconocido', fecha: fKey, totalMins: 0, activo: false, turnoActivoId: null };
     }
-    agrupado[key].totalHoras += parseFloat(t.horas_totales || 0);
+    let entMs = parseToMs(t.hora_entrada);
+    let salMs = parseToMs(t.hora_salida);
+    if (entMs && salMs && salMs > entMs) {
+      agrupado[key].totalMins += (salMs - entMs) / (1000 * 60);
+    } else if (t.horas_totales) {
+      agrupado[key].totalMins += parseFloat(t.horas_totales) * 60;
+    }
+
     if (t.estado === 'en_turno' || !t.hora_salida) {
       agrupado[key].activo = true;
       agrupado[key].turnoActivoId = t.id;
@@ -523,11 +583,14 @@ function renderHistorialAdmin() {
   tbody.innerHTML = "";
 
   Object.values(agrupado).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(item => {
+    let horasDia = item.totalMins / 60;
+    let dispMins = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${Math.round(item.totalMins)} min`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${item.nombre}</strong></td>
       <td>${item.fecha}</td>
-      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}</td>
+      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
       <td>
         <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
         ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;">Forzar Salida</button>` : ''}
@@ -630,7 +693,7 @@ async function guardarHorasManuales() {
     fecha_inicio: fecha,
     hora_entrada: tEntrada.toISOString(),
     hora_salida: tSalida.toISOString(),
-    horas_totales: parseFloat(diffHrs.toFixed(2)),
+    horas_totales: parseFloat(diffHrs.toFixed(4)),
     estado: "completado",
     origen: "manual"
   };
@@ -654,7 +717,10 @@ function abrirResumenPagoModal() {
   let d1 = new Date(desde);
   let d2 = new Date(hasta);
   let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
-  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+  const turnosFiltrados = cachedTurnos.filter(t => {
+    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    return fKey >= desde && fKey <= hasta;
+  });
   
   document.getElementById("resumen-rango-fechas").innerText = `Período del ${desde} al ${hasta}`;
   let html = `<ul style="list-style:none; padding:0; line-height:1.8;">`;
@@ -662,7 +728,18 @@ function abrirResumenPagoModal() {
 
   cachedUsers.forEach(u => {
     const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
-    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    let totalMinsUser = 0;
+    userTurnos.forEach(t => {
+      let entMs = parseToMs(t.hora_entrada);
+      let salMs = parseToMs(t.hora_salida);
+      if (entMs && salMs && salMs > entMs) {
+        totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.horas_totales) {
+        totalMinsUser += parseFloat(t.horas_totales) * 60;
+      }
+    });
+    let totalHoras = totalMinsUser / 60;
+
     let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
     let tipoPago = (u.tipo_pago || "Horas").trim();
     let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
@@ -683,7 +760,12 @@ function copiarResumenPago() {
 }
 
 function verDetallesAdminGlobal(userId, fecha) {
-  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha);
+  const listaTurnos = cachedTurnos.filter(t => {
+    if (String(t.id_usuario) !== String(userId)) return false;
+    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
+    return fKey === fecha;
+  });
+
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   listaTurnos.forEach(t => {
@@ -701,9 +783,9 @@ async function forzarSalida(idTurno) {
     const now = new Date();
     let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
     if (t) {
-      let entMs = parseFechaVZLA(t.hora_entrada).getTime();
+      let entMs = parseToMs(t.hora_entrada);
       let diffHrs = Math.max(0, (now.getTime() - entMs) / (1000 * 60 * 60));
-      t.hora_salida = now.getTime();
+      t.hora_salida = now.toISOString();
       t.horas_totales = parseFloat(diffHrs.toFixed(4));
       t.estado = "completado";
       guardarTurnosLocales();
