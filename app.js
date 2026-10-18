@@ -15,11 +15,10 @@ if (window.supabase) {
   }
 }
 
-// HORA Y FECHA ESTRICTA DE VENEZUELA (UTC-4)
+// HORA Y FECHA EXACTA DE VENEZUELA (UTC-4)
 function getVenezuelaDate(d = new Date()) {
-  // Ajuste matemático fijo UTC-4 para Venezuela para evitar desfase de servidores
   const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  const offsetVZLA = -4 * 60; // -240 minutos
+  const offsetVZLA = -4 * 60; 
   return new Date(utc + (60000 * offsetVZLA));
 }
 
@@ -47,14 +46,17 @@ function getFormattedTime(val) {
   }
 }
 
-// RELOJ EN VIVO
+// RELOJ EN VIVO CORREGIDO
 function iniciarRelojEnVivo() {
-  const relojEl = document.getElementById("reloj-venezuela");
-  if (!relojEl) return;
-  setInterval(() => {
-    const now = new Date();
-    relojEl.innerText = `🇻🇪 Hora Actual Venezuela: ${getFormattedTime(now)}`;
-  }, 1000);
+  const actualizarReloj = () => {
+    const relojEl = document.getElementById("reloj-venezuela");
+    if (relojEl) {
+      const now = new Date();
+      relojEl.innerText = `🇻🇪 Hora Actual: ${getFormattedTime(now)}`;
+    }
+  };
+  actualizarReloj();
+  setInterval(actualizarReloj, 1000);
 }
 
 // ENVÍO DE WHATSAPP CON PROXY
@@ -485,7 +487,7 @@ function verDetalleDia(fecha) {
   
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
-  if (modalDetalles) { modalDetalles.classList.remove("hidden"); modalDetalles.style.display = "flex"; }
+  if (modalDetalles) { modalDetalles.classList.add("hidden"); modalDetalles.style.display = "flex"; }
 }
 
 function calcularSimuladorCobro() {
