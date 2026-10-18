@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="stylesheet" href="style.css?v=36">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -149,7 +149,7 @@
     </div>
   </div>
 
-  <!-- MODALES DE CONFIRMACIÓN -->
+  <!-- MODALES DE CONFIRMACIÓN Y GESTIÓN -->
   <div id="modal-confirm" class="modal-backdrop hidden">
     <div class="modal-box glass-panel" style="text-align:center;">
       <h3 class="neon-title" id="confirm-title">¿Estás seguro?</h3>
@@ -193,11 +193,12 @@
     </div>
   </div>
 
+  <!-- MODAL DE REPORTE COMPLETO EN UNA SOLA VISTA SIN SCROLL INTERNO -->
   <div id="modal-resumen-pago" class="modal-backdrop hidden">
-    <div class="modal-box glass-panel" style="max-width: 600px;">
+    <div class="modal-box glass-panel" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
       <h3 class="neon-title">📋 Resumen de Pago para Superiores</h3>
       <p class="sub-title" id="resumen-rango-fechas" style="margin-bottom: 12px;"></p>
-      <div id="resumen-pago-contenido" style="max-height: 320px; overflow-y: auto; margin-bottom: 15px; font-size: 0.9rem; background: rgba(15,23,42,0.8); padding: 12px; border-radius: 8px; border: 1px solid #334155;"></div>
+      <div id="resumen-pago-contenido" style="height: auto; overflow: visible; margin-bottom: 15px; font-size: 0.9rem; background: rgba(15,23,42,0.8); padding: 15px; border-radius: 8px; border: 1px solid #334155;"></div>
       <div class="modal-actions">
         <button onclick="copiarResumenPago()" class="btn-action btn-orange">📋 Copiar Reporte</button>
         <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
@@ -294,6 +295,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>
