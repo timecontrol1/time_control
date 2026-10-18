@@ -35,7 +35,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   initMatrixEffect();
   await syncDataFromSupabase();
 
-  // Restaurar sesión activa si se recarga la página
   const savedUserId = localStorage.getItem("active_user_id");
   if (savedUserId) {
     let found = cachedUsers.find(u => String(u.id) === String(savedUserId));
@@ -163,7 +162,7 @@ async function login() {
       loadAdminData();
     } else {
       document.getElementById("sec-trabajador").classList.remove("hidden");
-      document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
+      document.getElementById("worker-title", true).innerText = `Trabajador: ${user.nombre}`;
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
       loadWorkerData();
     }
@@ -182,7 +181,7 @@ function logout() {
 }
 
 // ==========================================
-// PANEL TRABAJADOR & CONSOLIDACIÓN 1 LÍNEA
+// PANEL TRABAJADOR
 // ==========================================
 
 async function loadWorkerData() {
@@ -281,7 +280,6 @@ function toggleReceso() {
   alert("Pausa / Receso registrado.");
 }
 
-// RENDERIZAR 1 LÍNEA POR DÍA (CONSOLIDADO)
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
@@ -292,7 +290,6 @@ function renderTablaTrabajador() {
 
   const filtrados = cachedTurnos.filter(t => t.id_usuario === currentUser.id && (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
 
-  // Agrupar turnos por fecha para mostrar 1 sola línea por día
   let porFecha = {};
   filtrados.forEach(t => {
     if (!porFecha[t.fecha_inicio]) {
@@ -387,7 +384,7 @@ function calcularSimuladorCobro() {
 }
 
 // ==========================================
-// PANEL ADMINISTRADOR (CON CONEXIÓN EN VIVO)
+// PANEL ADMINISTRADOR
 // ==========================================
 
 async function loadAdminData() {
