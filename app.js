@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP
+// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CORREGIDA)
 async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -28,17 +28,21 @@ async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora)
                   `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
+  const url = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+
   try {
-    await fetch(`https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`, {
+    await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
         chatId: WHATSAPP_GROUP_ID,
         message: mensaje
       })
     });
   } catch (error) {
-    console.warn("Error enviando mensaje de WhatsApp:", error);
+    console.warn("Error enviando mensaje a WhatsApp:", error);
   }
 }
 
