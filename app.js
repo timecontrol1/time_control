@@ -118,10 +118,10 @@ async function syncDataFromSupabase() {
     const { data: users, error: errU } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
     if (!errU && users && users.length > 0) cachedUsers = users;
 
-    const { data: turnos, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("fecha_inicio", { ascending: false });
+    const { data: turnos, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("id", { ascending: false });
     if (!errT && turnos) cachedTurnos = turnos;
   } catch (e) {
-    console.warn("Usando datos locales por error de red:", e);
+    console.warn("Usando datos locales:", e);
   }
 }
 
@@ -181,14 +181,14 @@ function logout() {
 }
 
 // ==========================================
-// PANEL TRABAJADOR
+// PANEL TRABAJADOR (INICIAR / FINALIZAR TURNO)
 // ==========================================
 
 async function loadWorkerData() {
   if (!currentUser) return;
   await syncDataFromSupabase();
 
-  currentShift = cachedTurnos.find(t => t.id_usuario === currentUser.id && (t.estado === "en_turno" || !t.hora_salida)) || null;
+  currentShift = cachedTurnos.find(t => String(t.id_usuario) === String(currentUser.id) && (t.estado === "en_turno" || !t.hora_salida)) || null;
   
   actualizarBotonesTurno(!!currentShift);
   renderTablaTrabajador();
@@ -237,6 +237,7 @@ async function ejecutarToggleTurno() {
   const fechaStr = `${yyyy}-${mm}-${dd}`;
 
   if (!currentShift) {
+    // INICIAR TURNO
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: currentUser.id,
@@ -259,10 +260,11 @@ async function ejecutarToggleTurno() {
           origen: "sistema"
         }]);
       } catch (e) {
-        console.warn("Guardado localmente (error en red al iniciar turno).");
+        console.warn("Error de red al iniciar turno, respaldado localmente.");
       }
     }
   } else {
+    // FINALIZAR TURNO
     const entrada = new Date(currentShift.hora_entrada);
     const salida = now;
     let diffMs = salida - entrada;
@@ -280,7 +282,7 @@ async function ejecutarToggleTurno() {
           estado: "completado"
         }).eq("id", currentShift.id);
       } catch (e) {
-        console.warn("Actualizado localmente (error en red al finalizar turno).");
+        console.warn("Error de red al finalizar turno.");
       }
     }
 
@@ -306,7 +308,7 @@ function renderTablaTrabajador() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const filtrados = cachedTurnos.filter(t => t.id_usuario === currentUser.id && (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
+  const filtrados = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
 
   let porFecha = {};
   filtrados.forEach(t => {
@@ -358,7 +360,7 @@ function renderTablaTrabajador() {
 }
 
 function verDetalleDia(fecha) {
-  const listaTurnos = cachedTurnos.filter(t => t.id_usuario === currentUser.id && t.fecha_inicio === fecha);
+  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
@@ -402,7 +404,7 @@ function calcularSimuladorCobro() {
 }
 
 // ==========================================
-// PANEL ADMINISTRADOR
+// PANEL ADMINISTRADOR (REGISTRO DE HORAS MANUALES)
 // ==========================================
 
 async function loadAdminData() {
@@ -434,7 +436,7 @@ function renderTablaUsuariosAdmin() {
     if (tipoPago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
     else if (tipoPago === "Fijo") tarifaLabel = `$${tarifaVal.toFixed(2)} / sem`;
 
-    const userTurnos = turnosFiltrados.filter(t => t.id_usuario === u.id);
+    const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
     let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
     
     let totalPagar = 0;
@@ -474,7 +476,7 @@ function renderTablaUsuariosAdmin() {
 function renderHistorialAdmin() {
   let agrupado = {};
   cachedTurnos.forEach(t => {
-    const userObj = cachedUsers.find(u => u.id === t.id_usuario);
+    const userObj = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
     const uNombre = userObj ? userObj.nombre : 'Desconocido';
     const fecha = t.fecha_inicio;
     const key = `${t.id_usuario}_${fecha}`;
@@ -543,7 +545,7 @@ function openNuevoUsuarioModal() {
 }
 
 function openEditarUsuarioModal(id) {
-  const user = cachedUsers.find(u => u.id === id);
+  const user = cachedUsers.find(u => String(u.id) === String(id));
   if (!user) return;
 
   document.getElementById("modal-user-title").innerText = "Editar Usuario: " + user.nombre;
@@ -576,18 +578,11 @@ async function guardarUsuario() {
 
   let payload = { nombre, usuario, pin, tipo_pago, tarifa: valTarifa, cargo, rol };
 
-  if (id) {
-    let userObj = cachedUsers.find(u => String(u.id) === String(id));
-    if (userObj) Object.assign(userObj, payload);
-    if (supabaseClient) {
-      try { await supabaseClient.from("usuarios").update(payload).eq("id", id); } catch(e){ console.warn(e); }
-    }
-  } else {
-    let newId = Date.now();
-    payload.id = newId;
-    cachedUsers.push(payload);
-    if (supabaseClient) {
-      try { await supabaseClient.from("usuarios").insert([payload]); } catch(e){ console.warn(e); }
+  if (supabaseClient) {
+    if (id) {
+      await supabaseClient.from("usuarios").update(payload).eq("id", id);
+    } else {
+      await supabaseClient.from("usuarios").insert([payload]);
     }
   }
 
@@ -598,9 +593,8 @@ async function guardarUsuario() {
 
 async function borrarUsuario(id) {
   if (confirm("¿Borrar usuario de forma permanente?")) {
-    cachedUsers = cachedUsers.filter(u => u.id !== id);
     if (supabaseClient) {
-      try { await supabaseClient.from("usuarios").delete().eq("id", id); } catch(e){ console.warn(e); }
+      await supabaseClient.from("usuarios").delete().eq("id", id);
     }
     await loadAdminData();
   }
@@ -660,7 +654,7 @@ async function guardarHorasManuales() {
         origen: "manual"
       }]);
     } catch (e) {
-      console.warn("Guardado de horas manuales localmente.");
+      console.warn("Guardado local de horas manuales.");
     }
   }
 
@@ -687,7 +681,7 @@ function abrirResumenPagoModal() {
   let granTotal = 0;
 
   cachedUsers.forEach(u => {
-    const userTurnos = turnosFiltrados.filter(t => t.id_usuario === u.id);
+    const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
     let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
     let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? parseFloat(u.tarifa) : 1.0;
     let totalPagar = 0;
@@ -731,7 +725,7 @@ function copiarResumenPago() {
 }
 
 function verDetallesAdminGlobal(userId, fecha) {
-  const listaTurnos = cachedTurnos.filter(t => t.id_usuario === userId && t.fecha_inicio === fecha);
+  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
@@ -757,7 +751,7 @@ function verDetallesAdminGlobal(userId, fecha) {
 async function forzarSalida(idTurno) {
   if (confirm("¿Forzar salida de este turno activo?")) {
     const now = new Date();
-    let t = cachedTurnos.find(x => x.id === idTurno);
+    let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
     if (t) {
       let entrada = new Date(t.hora_entrada);
       let diffMs = now - entrada;
@@ -773,20 +767,20 @@ async function forzarSalida(idTurno) {
         await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
       } catch (e) {}
     }
-    loadAdminData();
+    await loadAdminData();
   }
 }
 
 async function borrarTurno(id) {
   if (confirm("¿Eliminar este registro de turno?")) {
-    cachedTurnos = cachedTurnos.filter(t => t.id !== id);
+    cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
     if (supabaseClient) {
       try {
         await supabaseClient.from("registros_turnos").delete().eq("id", id);
       } catch (e) {}
     }
     closeModals();
-    loadAdminData();
+    await loadAdminData();
   }
 }
 
@@ -821,7 +815,7 @@ async function aplicarTarifaGlobal() {
   }
 
   closeModals();
-  loadAdminData();
+  await loadAdminData();
   alert("Tarifa general aplicada con éxito.");
 }
 
