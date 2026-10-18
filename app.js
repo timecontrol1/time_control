@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FORMATO DE HORA NATIVA LOCAL
+// FORMATO DE HORA Y FECHA REAL DEL NAVEGADOR
 function getVenezuelaTimeString(d = new Date()) {
   try {
     return d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -35,7 +35,7 @@ function getVenezuelaDateString(d = new Date()) {
   }
 }
 
-// ENVÍO DE WHATSAPP MEDIANTE PROXY
+// ENVÍO DE WHATSAPP CON PROXY LIBRE DE BLOQUEOS
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -115,7 +115,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch(e) {
-    console.error("Error al iniciar sesión automática:", e);
+    console.error("Error reconectando usuario:", e);
     localStorage.removeItem("active_user_id");
   }
 });
