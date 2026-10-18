@@ -15,30 +15,20 @@ if (window.supabase) {
   }
 }
 
-// OBTENER FECHA Y HORA LOCAL DE VENEZUELA SIN DESFASE UTC
-function getHoraLocalVZLA(d = new Date()) {
-  // Ajuste explícito UTC-4
-  const offsetVZLA = -4 * 60; // -240 minutos
-  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  return new Date(utc + (60000 * offsetVZLA));
-}
-
+// OBTENER FECHA Y HORA REAL DEL NAVEGADOR SIN DESFASE
 function getVenezuelaDateString(d = new Date()) {
-  const vzla = getHoraLocalVZLA(d);
-  const yyyy = vzla.getFullYear();
-  const mm = String(vzla.getMonth() + 1).padStart(2, '0');
-  const dd = String(vzla.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
 function getVenezuelaTimeString(d = new Date()) {
-  const vzla = getHoraLocalVZLA(d);
-  let hours = vzla.getHours();
-  const minutes = String(vzla.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  try {
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch(e) { 
+    return '--:--'; 
+  }
 }
 
 // ENVÍO DE WHATSAPP CON PROXY
@@ -154,11 +144,10 @@ function initMatrixEffect() {
 
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const vzlaNow = getHoraLocalVZLA(now);
-  const year = vzlaNow.getFullYear();
-  const month = vzlaNow.getMonth();
-  const date = vzlaNow.getDate();
-  const dayOfWeek = vzlaNow.getDay();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const date = now.getDate();
+  const dayOfWeek = now.getDay();
   const distanceToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
   const monday = new Date(year, month, date + distanceToMonday);
   const sunday = new Date(year, month, date + distanceToMonday + 6);
@@ -288,7 +277,7 @@ function ejecutarToggleTurno() {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: now.getTime(), // Guardamos timestamp numérico para evitar desfasaje de ISO
+      hora_entrada: now.getTime(),
       estado: "en_turno",
       origen: "sistema"
     };
