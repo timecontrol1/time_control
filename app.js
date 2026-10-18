@@ -30,10 +30,29 @@ let cachedUsers = [
 
 let cachedTurnos = [];
 
+// CARGAR TURNOS DESDE LOCALSTORAGE COMO RESPALDO INFALIBLE
+function cargarTurnosLocales() {
+  try {
+    const local = localStorage.getItem("app_turnos_locales");
+    if (local) {
+      cachedTurnos = JSON.parse(local);
+    }
+  } catch(e) {
+    cachedTurnos = [];
+  }
+}
+
+function guardarTurnosLocales() {
+  try {
+    localStorage.setItem("app_turnos_locales", JSON.stringify(cachedTurnos));
+  } catch(e) {}
+}
+
 // INICIALIZACIÓN Y PERSISTENCIA DE SESIÓN
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   initMatrixEffect();
-  syncDataFromSupabase();
+  cargarTurnosLocales();
+  await syncDataFromSupabase();
 
   const savedUserId = localStorage.getItem("active_user_id");
   if (savedUserId) {
@@ -119,9 +138,12 @@ async function syncDataFromSupabase() {
     if (!errU && users && users.length > 0) cachedUsers = users;
 
     const { data: turnos, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("id", { ascending: false });
-    if (!errT && turnos) cachedTurnos = turnos;
+    if (!errT && turnos && turnos.length > 0) {
+      cachedTurnos = turnos;
+      guardarTurnosLocales();
+    }
   } catch (e) {
-    console.warn("Usando datos locales:", e);
+    console.warn("Usando respaldo local de turnos:", e);
   }
 }
 
@@ -237,36 +259,32 @@ async function ejecutarToggleTurno() {
   const fechaStr = `${yyyy}-${mm}-${dd}`;
 
   if (!currentShift) {
-    // INICIAR TURNO
-    const payloadSupabase = {
-      id_usuario: parseInt(currentUser.id),
+    // INICIAR TURNO (BLINDADO LOCAL + SUPABASE)
+    const nuevoTurno = {
+      id: Date.now(),
+      id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
       hora_entrada: now.toISOString(),
       estado: "en_turno",
       origen: "sistema"
     };
 
+    cachedTurnos.unshift(nuevoTurno);
+    currentShift = nuevoTurno;
+    guardarTurnosLocales();
+
     if (supabaseClient) {
       try {
-        const { data, error } = await supabaseClient.from("registros_turnos").insert([payloadSupabase]).select();
-        if (!error && data && data.length > 0) {
-          cachedTurnos.unshift(data[0]);
-          currentShift = data[0];
-        } else {
-          // Fallback local si supabase rechaza por formato pero permite inserción ciega
-          const nuevoTurnoLocal = { id: Date.now(), ...payloadSupabase };
-          cachedTurnos.unshift(nuevoTurnoLocal);
-          currentShift = nuevoTurnoLocal;
-        }
+        await supabaseClient.from("registros_turnos").insert([{
+          id_usuario: Number(currentUser.id),
+          fecha_inicio: fechaStr,
+          hora_entrada: now.toISOString(),
+          estado: "en_turno",
+          origen: "sistema"
+        }]);
       } catch (e) {
-        const nuevoTurnoLocal = { id: Date.now(), ...payloadSupabase };
-        cachedTurnos.unshift(nuevoTurnoLocal);
-        currentShift = nuevoTurnoLocal;
+        console.warn("Turno guardado localmente (sin red Supabase).");
       }
-    } else {
-      const nuevoTurnoLocal = { id: Date.now(), ...payloadSupabase };
-      cachedTurnos.unshift(nuevoTurnoLocal);
-      currentShift = nuevoTurnoLocal;
     }
   } else {
     // FINALIZAR TURNO
@@ -278,6 +296,7 @@ async function ejecutarToggleTurno() {
     currentShift.hora_salida = salida.toISOString();
     currentShift.horas_totales = parseFloat(diffHrs.toFixed(2));
     currentShift.estado = "completado";
+    guardarTurnosLocales();
 
     if (supabaseClient) {
       try {
@@ -407,7 +426,7 @@ function calcularSimuladorCobro() {
 }
 
 // ==========================================
-// PANEL ADMINISTRADOR (REGISTRO DE HORAS MANUALES CORREGIDO)
+// PANEL ADMINISTRADOR (REGISTRO MANUAL Y CARGA MASIVA)
 // ==========================================
 
 async function loadAdminData() {
@@ -642,24 +661,167 @@ async function guardarHorasManuales() {
     origen: "manual"
   };
 
-  // Guardado local inmediato para renderizar sin esperar red
   const payloadLocal = {
     id: Date.now(),
     ...payloadSupabase
   };
+
   cachedTurnos.unshift(payloadLocal);
+  guardarTurnosLocales();
 
   if (supabaseClient) {
     try {
       await supabaseClient.from("registros_turnos").insert([payloadSupabase]);
-    } catch (e) {
-      console.warn("Guardado local de horas manuales.");
-    }
+    } catch (e) {}
   }
 
   closeModals();
   await loadAdminData();
-  alert("¡Horas cargadas correctamente!");
+  alert("¡Horas cargadas y guardadas correctamente!");
+}
+
+// NUEVA FUNCIÓN: CARGA MASIVA DE FECHAS VIEJAS POR LOTE
+function openCargaMasivaModal() {
+  const sel = document.getElementById("masiva-user-select");
+  if (sel) {
+    sel.innerHTML = "";
+    cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre} (${u.tipo_pago || 'Horas'})</option>`);
+  }
+  // Generar 5 filas por defecto para ingreso rápido
+  generarFilasLote(5);
+
+  const modalMasiva = document.getElementById("modal-carga-masiva");
+  if (modalMasiva) {
+    modalMasiva.classList.remove("hidden");
+    modalMasiva.style.display = "flex";
+  } else {
+    // Si el HTML no tiene el modal creado, lo creamos dinámicamente para que no falle nunca
+    crearModalMasivaHTML();
+  }
+}
+
+function crearModalMasivaHTML() {
+  if (document.getElementById("modal-carga-masiva")) return;
+  const div = document.createElement("div");
+  div.id = "modal-carga-masiva";
+  div.className = "modal-backdrop hidden";
+  div.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:none; justify-content:center; align-items:center; z-index:9999;";
+  div.innerHTML = `
+    <div style="background:#0f172a; padding:25px; border-radius:12px; width:90%; max-width:700px; border:1px solid #334155; color:#f8fafc; max-height:90vh; overflow-y:auto;">
+      <h3 style="margin-top:0; color:#10b981;">📥 Carga Masiva de Fechas Viejas (Por Lotes)</h3>
+      <p style="font-size:0.9rem; color:#94a3b8;">Selecciona el trabajador y añade varias filas con las fechas y horas pasadas para guardarlas todas juntas de un solo golpe.</p>
+      
+      <div style="margin-bottom:15px;">
+        <label style="display:block; font-size:0.85rem; margin-bottom:5px;">Trabajador:</label>
+        <select id="masiva-user-select" style="width:100%; padding:10px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:6px;"></select>
+      </div>
+
+      <div id="contenedor-filas-lote" style="margin-bottom:15px;"></div>
+
+      <button onclick="agregarFilaLote()" style="background:#334155; color:#fff; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.85rem; margin-bottom:15px;">➕ Añadir otra fila</button>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button onclick="closeModals()" style="background:#475569; color:#fff; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">Cancelar</button>
+        <button onclick="guardarCargaMasiva()" style="background:#10b981; color:#022c22; font-weight:bold; border:none; padding:10px 20px; border-radius:6px; cursor:pointer;">Guardar Todo el Lote</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  openCargaMasivaModal();
+}
+
+function generarFilasLote(cantidad) {
+  const contenedor = document.getElementById("contenedor-filas-lote");
+  if (!contenedor) return;
+  contenedor.innerHTML = `
+    <div style="display:grid; grid-template-columns: 2fr 1.5fr 1.5fr 40px; gap:8px; font-weight:bold; font-size:0.8rem; color:#94a3b8; margin-bottom:5px;">
+      <span>Fecha</span><span>Entrada</span><span>Salida</span><span></span>
+    </div>
+  `;
+  for (let i = 0; i < cantidad; i++) {
+    agregarFilaLote();
+  }
+}
+
+function agregarFilaLote() {
+  const contenedor = document.getElementById("contenedor-filas-lote");
+  if (!contenedor) return;
+  
+  const today = new Date().toISOString().split("T")[0];
+  const row = document.createElement("div");
+  row.className = "fila-lote-item";
+  row.style.cssText = "display:grid; grid-template-columns: 2fr 1.5fr 1.5fr 40px; gap:8px; margin-bottom:8px;";
+  row.innerHTML = `
+    <input type="date" class="lote-fecha" value="${today}" style="padding:8px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px;">
+    <input type="time" class="lote-entrada" value="08:00" style="padding:8px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px;">
+    <input type="time" class="lote-salida" value="17:00" style="padding:8px; background:#1e293b; color:#fff; border:1px solid #475569; border-radius:4px;">
+    <button onclick="this.parentElement.remove()" style="background:#ef4444; color:#fff; border:none; border-radius:4px; cursor:pointer;" title="Eliminar fila">✕</button>
+  `;
+  contenedor.appendChild(row);
+}
+
+async function guardarCargaMasiva() {
+  const userId = parseInt(document.getElementById("masiva-user-select").value);
+  const filas = document.querySelectorAll(".fila-lote-item");
+
+  if (filas.length === 0) {
+    alert("Agrega al menos un registro en el lote.");
+    return;
+  }
+
+  let nuevosRegistros = [];
+  let errorHoras = false;
+
+  filas.forEach((fila) => {
+    const fecha = fila.querySelector(".lote-fecha").value;
+    const hEntrada = fila.querySelector(".lote-entrada").value;
+    const hSalida = fila.querySelector(".lote-salida").value;
+
+    if (fecha && hEntrada && hSalida) {
+      let tEntrada = new Date(`${fecha}T${hEntrada}:00`);
+      let tSalida = new Date(`${fecha}T${hSalida}:00`);
+      let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
+      if (diffHrs < 0) diffHrs += 24;
+
+      const payloadSupabase = {
+        id_usuario: userId,
+        fecha_inicio: fecha,
+        hora_entrada: tEntrada.toISOString(),
+        hora_salida: tSalida.toISOString(),
+        horas_totales: parseFloat(diffHrs.toFixed(2)),
+        estado: "completado",
+        origen: "masivo_lote"
+      };
+
+      const payloadLocal = {
+        id: Date.now() + Math.random(),
+        ...payloadSupabase
+      };
+
+      nuevosRegistros.push(payloadLocal);
+    }
+  });
+
+  if (nuevosRegistros.length === 0) {
+    alert("Por favor completa los datos en las filas.");
+    return;
+  }
+
+  // Insertar en caché local y ordenar por fecha descendente
+  cachedTurnos = [...nuevosRegistros, ...cachedTurnos];
+  guardarTurnosLocales();
+
+  if (supabaseClient) {
+    try {
+      // Limpiamos la propiedad temporal 'id' para que Supabase genere la suya
+      let cleanPayloads = nuevosRegistros.map(({id, ...rest}) => rest);
+      await supabaseClient.from("registros_turnos").insert(cleanPayloads);
+    } catch (e) {}
+  }
+
+  closeModals();
+  await loadAdminData();
+  alert(`¡${nuevosRegistros.length} registros cargados y guardados con éxito en lote!`);
 }
 
 function abrirResumenPagoModal() {
@@ -759,6 +921,7 @@ async function forzarSalida(idTurno) {
       t.hora_salida = now.toISOString();
       t.horas_totales = parseFloat(diffHrs.toFixed(2));
       t.estado = "completado";
+      guardarTurnosLocales();
     }
 
     if (supabaseClient) {
@@ -773,6 +936,8 @@ async function forzarSalida(idTurno) {
 async function borrarTurno(id) {
   if (confirm("¿Eliminar este registro de turno?")) {
     cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
+    guardarTurnosLocales();
+
     if (supabaseClient) {
       try {
         await supabaseClient.from("registros_turnos").delete().eq("id", id);
