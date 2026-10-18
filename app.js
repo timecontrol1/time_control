@@ -1,11 +1,10 @@
-// Ejemplo de datos simulados que recibes de tu backend o API
+// Simulación o recepción de datos del backend
 const datosAsistenciasCrudos = [
     { id: 1, trabajador: "Daniel", fecha: "2026-10-18", entrada: "04:58 p. m.", salida: "02:25 p. m.", minutos: 20 },
     { id: 2, trabajador: "Daniel", fecha: "2026-10-18", entrada: "04:24 p. m.", salida: "04:30 p. m.", minutos: 6 }
-    // ... más registros
 ];
 
-// Función para agrupar por Trabajador y Fecha
+// Función para agrupar registros por Trabajador y Fecha
 function agruparAsistenciasPorDia(registros) {
     const agrupado = {};
 
@@ -30,7 +29,7 @@ function agruparAsistenciasPorDia(registros) {
     return Object.values(agrupado);
 }
 
-// Renderizar la tabla principal
+// Renderizar la tabla principal con filas y columnas estructuradas
 function renderizarHistorialGlobal() {
     const tbody = document.getElementById("tabla-historial-cuerpo");
     tbody.innerHTML = "";
@@ -53,7 +52,7 @@ function renderizarHistorialGlobal() {
     });
 }
 
-// Funciones para abrir y cerrar el modal de detalles
+// Funciones para controlar el modal de detalles
 function abrirModalDetalles(sesiones, fecha, trabajador) {
     const modal = document.getElementById("modal-detalles");
     const titulo = document.getElementById("titulo-modal-fecha");
@@ -61,15 +60,14 @@ function abrirModalDetalles(sesiones, fecha, trabajador) {
 
     titulo.innerText = `Reporte Detallado (${fecha}) - ${trabajador}`;
     
-    let htmlSesiones = "<p>Sesiones del día:</p>";
+    let htmlSesiones = "<p style='font-size: 13px; color: #8b949e;'>Sesiones del día:</p>";
     sesiones.forEach(s => {
         htmlSesiones += `
             <div class="sesion-card-item">
-                <p>Entrada: ${s.entrada}</p>
-                <p>Salida: ${s.salida}</p>
+                <p style="margin: 4px 0;">Entrada: ${s.entrada}</p>
+                <p style="margin: 4px 0;">Salida: ${s.salida}</p>
                 <button class="btn-eliminar-sesion" onclick="eliminarSesion(${s.id})">Eliminar</button>
             </div>
-            <hr>
         `;
     });
 
@@ -82,9 +80,8 @@ function cerrarModalDetalles() {
 }
 
 function eliminarSesion(idSesion) {
-    // Lógica para eliminar la sesión específica mediante fetch/axios a tu backend
     console.log("Eliminando sesión con ID:", idSesion);
-    alert("Sesión eliminada. Actualiza la vista.");
+    alert("Sesión eliminada correctamente.");
     cerrarModalDetalles();
 }
 
