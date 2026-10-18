@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// ENVÍO A WHATSAPP COMPLETAMENTE EN SEGUNDO PLANO (SIN FRENAR LA PÁGINA)
+// ENVÍO A WHATSAPP EN SEGUNDO PLANO LIBRE
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -31,7 +31,6 @@ function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
   const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`;
 
-  // Se ejecuta de manera asíncrona libre sin usar await para no congelar la pantalla
   fetch(proxyUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,7 +41,7 @@ function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
       mode: "no-cors",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
-    }).catch(e => console.log("Aviso de red WhatsApp:", e));
+    }).catch(e => console.log(e));
   });
 }
 
@@ -231,12 +230,12 @@ function actualizarBotonesTurno(enTurno) {
 
   if (enTurno) {
     btnFichar.innerText = "■ Finalizar Turno";
-    btnFichar.style.backgroundColor = "#ef4444";
-    btnFichar.style.color = "#ffffff";
+    btnFichar.style.setProperty("background-color", "#ef4444", "important");
+    btnFichar.style.setProperty("color", "#ffffff", "important");
   } else {
     btnFichar.innerText = "▶ Iniciar Turno";
-    btnFichar.style.backgroundColor = "#10b981";
-    btnFichar.style.color = "#022c22";
+    btnFichar.style.setProperty("background-color", "#10b981", "important");
+    btnFichar.style.setProperty("color", "#022c22", "important");
   }
 }
 
@@ -244,7 +243,7 @@ function confirmarToggleTurno() {
   if (!currentUser) return;
   const enTurno = !!currentShift;
   document.getElementById("confirm-title").innerText = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
-  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro que deseas iniciar un nuevo turno de trabajo?";
+  document.getElementById("confirm-text").innerText = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro যে deseas iniciar un nuevo turno de trabajo?";
 
   const modalConfirm = document.getElementById("modal-confirm");
   if (modalConfirm) {
@@ -253,7 +252,7 @@ function confirmarToggleTurno() {
   }
 }
 
-// EJECUCIÓN INSTANTÁNEA (ACTUALIZA LA PANTALLA DE INMEDIATO)
+// EJECUCIÓN INMEDIATA CON REFRESCO VISUAL FORZADO
 function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
@@ -278,11 +277,10 @@ function ejecutarToggleTurno() {
     currentShift = nuevoTurno;
     guardarTurnosLocales();
 
-    // Actualiza la interfaz visual al instante
+    // Refrescar UI al instante
     actualizarBotonesTurno(true);
     renderTablaTrabajador();
 
-    // Sincronización y notificación en segundo plano
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").insert([{
         id_usuario: Number(currentUser.id),
@@ -304,19 +302,18 @@ function ejecutarToggleTurno() {
     let diffMs = salida - entrada;
     let diffHrs = Math.max(0, diffMs / (1000 * 60 * 60));
 
+    const turnoIdAActualizar = currentShift.id;
     currentShift.hora_salida = salida.toISOString();
     currentShift.horas_totales = parseFloat(diffHrs.toFixed(2));
     currentShift.estado = "completado";
     guardarTurnosLocales();
 
-    const turnoIdAActualizar = currentShift.id;
     currentShift = null;
 
-    // Actualiza la interfaz visual al instante
+    // Refrescar UI al instante
     actualizarBotonesTurno(false);
     renderTablaTrabajador();
 
-    // Sincronización y notificación en segundo plano
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").update({
         hora_salida: salida.toISOString(),
