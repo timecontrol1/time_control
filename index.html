@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=42">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -59,6 +59,23 @@
         </div>
         <div class="simulador-cobro">
           <div id="label-total-periodo">Total Período: <span id="w-total-periodo" class="txt-green">0.00 hrs</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMULADOR DE COBRO DEL TRABAJADOR -->
+    <div class="card-matrix glass-panel">
+      <div class="card-header-title">🧮 Simulador de Cobro</div>
+      <p class="sub-title" style="margin-bottom: 12px;">Ingresa tu tarifa referencial y visualiza tu cálculo estimado.</p>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label>1. TARIFA REFERENCIAL ($ / HORA)</label>
+          <input type="number" step="0.1" id="w-tarifa-input" value="1.5" oninput="calcularSimuladorCobro()" placeholder="Ej. 1.5">
+        </div>
+        <div class="form-group" style="flex:1; background: rgba(15,23,42,0.8); padding: 12px; border-radius: 8px; border: 1px solid #334155; text-align: center;">
+          <label style="color: #94a3b8; font-size: 0.8rem;">2. TOTAL ESTIMADO A COBRAR</label>
+          <div id="w-total-estimado" style="font-size: 1.5rem; font-weight: bold; color: #10b981; margin-top: 4px;">$0.00</div>
+          <small id="w-detalle-horas-estimadas" style="color: #64748b; font-size: 0.75rem;"></small>
         </div>
       </div>
     </div>
@@ -149,7 +166,7 @@
     </div>
   </div>
 
-  <!-- MODALES DE CONFIRMACIÓN Y GESTIÓN -->
+  <!-- MODALES -->
   <div id="modal-confirm" class="modal-backdrop hidden">
     <div class="modal-box glass-panel" style="text-align:center;">
       <h3 class="neon-title" id="confirm-title">¿Estás seguro?</h3>
@@ -257,7 +274,7 @@
       <p class="sub-title">Actualiza la tarifa general (aplica a quienes cobran por hora).</p>
       <div class="form-group" style="margin-top:15px;">
         <label>NUEVA TARIFA GENERAL ($ / HORA)</label>
-        <input type="number" step="0.1" id="global-tarifa-input" value="1.5">
+        <input type="number" step="0.1" id="global-tarifa-input" value="1.0">
       </div>
       <div class="modal-actions">
         <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
@@ -287,14 +304,33 @@
           <input type="time" id="manual-salida" value="17:00">
         </div>
       </div>
-      <div class="modal-actions" style="gap:8px;">
-        <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
-        <button onclick="guardarHorasManuales(true)" class="btn-action btn-orange">+ Guardar y Agregar Otro</button>
-        <button onclick="guardarHorasManuales(false)" class="btn-action btn-green">Guardar y Finalizar</button>
+      <div class="modal-actions">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarHorasManuales()" class="btn-action btn-green">Guardar Registro</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=40"></script>
+  <script>
+    function calcularSimuladorCobro() {
+      const inputTarifa = document.getElementById("w-tarifa-input");
+      const labelTotal = document.getElementById("w-total-estimado");
+      const labelDetalle = document.getElementById("w-detalle-horas-estimadas");
+      const labelPeriodo = document.getElementById("w-total-periodo");
+      
+      if (!inputTarifa || !labelTotal || !labelPeriodo) return;
+      
+      let tarifa = parseFloat(inputTarifa.value) || 0;
+      let textoHoras = labelPeriodo.innerText || "0";
+      let horas = parseFloat(textoHoras) || 0;
+      
+      let total = horas * tarifa;
+      labelTotal.innerText = `$${total.toFixed(2)}`;
+      if (labelDetalle) {
+        labelDetalle.innerText = `Suma de ${horas.toFixed(2)} hrs únicas`;
+      }
+    }
+  </script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
