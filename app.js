@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CORREGIDA)
+// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP (CON PROXY ANTI-BLOQUEO)
 async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -28,7 +28,8 @@ async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora)
                   `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  const url = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+  // Proxy corsproxy.io para que el navegador no bloquee el envío desde Render
+  const url = `https://corsproxy.io/?https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
 
   try {
     await fetch(url, {
