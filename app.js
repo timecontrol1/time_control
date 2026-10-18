@@ -15,27 +15,33 @@ if (window.supabase) {
   }
 }
 
-// FORMATO DE HORA Y FECHA REAL DEL NAVEGADOR
-function getVenezuelaTimeString(d = new Date()) {
-  try {
-    return d.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
-  } catch(e) { 
-    return '--:--'; 
-  }
+// OBTENER FECHA Y HORA LOCAL DE VENEZUELA SIN DESFASE UTC
+function getHoraLocalVZLA(d = new Date()) {
+  // Ajuste explícito UTC-4
+  const offsetVZLA = -4 * 60; // -240 minutos
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  return new Date(utc + (60000 * offsetVZLA));
 }
 
 function getVenezuelaDateString(d = new Date()) {
-  try {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  } catch(e) { 
-    return new Date().toISOString().split('T')[0]; 
-  }
+  const vzla = getHoraLocalVZLA(d);
+  const yyyy = vzla.getFullYear();
+  const mm = String(vzla.getMonth() + 1).padStart(2, '0');
+  const dd = String(vzla.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-// ENVÍO DE WHATSAPP CON PROXY LIBRE DE BLOQUEOS
+function getVenezuelaTimeString(d = new Date()) {
+  const vzla = getHoraLocalVZLA(d);
+  let hours = vzla.getHours();
+  const minutes = String(vzla.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+}
+
+// ENVÍO DE WHATSAPP CON PROXY
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -115,7 +121,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       }
     }
   } catch(e) {
-    console.error("Error reconectando usuario:", e);
+    console.error("Error al reconectar:", e);
     localStorage.removeItem("active_user_id");
   }
 });
@@ -148,10 +154,11 @@ function initMatrixEffect() {
 
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const date = now.getDate();
-  const dayOfWeek = now.getDay();
+  const vzlaNow = getHoraLocalVZLA(now);
+  const year = vzlaNow.getFullYear();
+  const month = vzlaNow.getMonth();
+  const date = vzlaNow.getDate();
+  const dayOfWeek = vzlaNow.getDay();
   const distanceToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
   const monday = new Date(year, month, date + distanceToMonday);
   const sunday = new Date(year, month, date + distanceToMonday + 6);
@@ -281,7 +288,7 @@ function ejecutarToggleTurno() {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: now.toISOString(),
+      hora_entrada: now.getTime(), // Guardamos timestamp numérico para evitar desfasaje de ISO
       estado: "en_turno",
       origen: "sistema"
     };
@@ -297,7 +304,7 @@ function ejecutarToggleTurno() {
       supabaseClient.from("registros_turnos").insert([{
         id_usuario: Number(currentUser.id),
         fecha_inicio: fechaStr,
-        hora_entrada: now.toISOString(),
+        hora_entrada: new Date(now.getTime()).toISOString(),
         estado: "en_turno",
         origen: "sistema"
       }]).then(() => {
@@ -308,14 +315,17 @@ function ejecutarToggleTurno() {
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
-    const entrada = new Date(currentShift.hora_entrada);
-    const salida = now;
-    let diffMs = salida.getTime() - entrada.getTime();
+    let entradaMs = typeof currentShift.hora_entrada === 'number' 
+      ? currentShift.hora_entrada 
+      : new Date(currentShift.hora_entrada).getTime();
+
+    let salidaMs = now.getTime();
+    let diffMs = salidaMs - entradaMs;
     let diffHrs = Math.max(0, diffMs / (1000 * 60 * 60));
     let horasTotales = parseFloat(diffHrs.toFixed(2));
 
     const turnoIdAActualizar = currentShift.id;
-    currentShift.hora_salida = salida.toISOString();
+    currentShift.hora_salida = salidaMs;
     currentShift.horas_totales = horasTotales;
     currentShift.estado = "completado";
     guardarTurnosLocales();
@@ -327,7 +337,7 @@ function ejecutarToggleTurno() {
 
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").update({
-        hora_salida: salida.toISOString(),
+        hora_salida: new Date(salidaMs).toISOString(),
         horas_totales: horasTotales,
         estado: "completado"
       }).eq("id", turnoIdAActualizar).then(() => {
@@ -355,11 +365,15 @@ function renderTablaTrabajador() {
     }
     let grupo = porFecha[t.fecha_inicio];
     grupo.totalHoras += parseFloat(t.horas_totales || 0);
-    if (t.hora_entrada && (!grupo.primeraEntrada || new Date(t.hora_entrada) < new Date(grupo.primeraEntrada))) {
+    
+    let entradaObj = typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada);
+    let salidaObj = t.hora_salida ? (typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : null;
+
+    if (t.hora_entrada && (!grupo.primeraEntrada || entradaObj < new Date(grupo.primeraEntrada))) {
       grupo.primeraEntrada = t.hora_entrada;
     }
-    if (t.hora_salida) {
-      if (!grupo.ultimaSalida || new Date(t.hora_salida) > new Date(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
+    if (salidaObj) {
+      if (!grupo.ultimaSalida || salidaObj > new Date(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
     } else {
       grupo.enCurso = true;
     }
@@ -368,8 +382,8 @@ function renderTablaTrabajador() {
   let totalPeriodo = 0;
   Object.values(porFecha).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(g => {
     totalPeriodo += g.totalHoras;
-    const hEntrada = g.primeraEntrada ? getVenezuelaTimeString(new Date(g.primeraEntrada)) : '-';
-    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getVenezuelaTimeString(new Date(g.ultimaSalida)) : '-');
+    const hEntrada = g.primeraEntrada ? getVenezuelaTimeString(typeof g.primeraEntrada === 'number' ? new Date(g.primeraEntrada) : new Date(g.primeraEntrada)) : '-';
+    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getVenezuelaTimeString(typeof g.ultimaSalida === 'number' ? new Date(g.ultimaSalida) : new Date(g.ultimaSalida)) : '-');
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -392,9 +406,9 @@ function verDetalleDia(fecha) {
   document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getVenezuelaTimeString(new Date(t.hora_entrada)) : '-';
-    let sal = t.hora_salida ? getVenezuelaTimeString(new Date(t.hora_salida)) : 'En curso';
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br>Total: <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span></div>`;
+    let ent = t.hora_entrada ? getVenezuelaTimeString(typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada)) : '-';
+    let sal = t.hora_salida ? getVenezuelaTimeString(typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : 'En curso';
+    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br>Total: <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
   });
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
@@ -644,8 +658,8 @@ function verDetallesAdminGlobal(userId, fecha) {
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getVenezuelaTimeString(new Date(t.hora_entrada)) : '-';
-    let sal = t.hora_salida ? getVenezuelaTimeString(new Date(t.hora_salida)) : 'En curso';
+    let ent = t.hora_entrada ? getVenezuelaTimeString(typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada)) : '-';
+    let sal = t.hora_salida ? getVenezuelaTimeString(typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : 'En curso';
     html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
   });
   document.getElementById("detalle-contenido").innerHTML = html;
@@ -658,8 +672,8 @@ async function forzarSalida(idTurno) {
     const now = new Date();
     let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
     if (t) {
-      let diffHrs = Math.max(0, (now - new Date(t.hora_entrada)) / (1000 * 60 * 60));
-      t.hora_salida = now.toISOString();
+      let diffHrs = Math.max(0, (now.getTime() - new Date(t.hora_entrada).getTime()) / (1000 * 60 * 60));
+      t.hora_salida = now.getTime();
       t.horas_totales = parseFloat(diffHrs.toFixed(2));
       t.estado = "completado";
       guardarTurnosLocales();
