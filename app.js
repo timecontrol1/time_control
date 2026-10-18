@@ -15,7 +15,7 @@ if (window.supabase) {
   }
 }
 
-// FORMATO DE HORA Y FECHA LOCAL
+// FORMATO DE FECHA Y HORA EXACTA LOCAL
 function getFormattedDate(d = new Date()) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -23,12 +23,24 @@ function getFormattedDate(d = new Date()) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function getFormattedTime(d = new Date()) {
+function getFormattedTime(val) {
+  if (!val) return '--:--';
   try {
+    const d = typeof val === 'number' ? new Date(val) : new Date(val);
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   } catch(e) { 
     return '--:--'; 
   }
+}
+
+// RELOJ EN VIVO PARA VERIFICAR LA HORA LOCAL EN VENEZUELA
+function iniciarRelojEnVivo() {
+  const relojEl = document.getElementById("reloj-venezuela");
+  if (!relojEl) return;
+  setInterval(() => {
+    const now = new Date();
+    relojEl.innerText = `🇻🇪 Hora Actual: ${getFormattedTime(now)}`;
+  }, 1000);
 }
 
 // ENVÍO DE WHATSAPP CON PROXY
@@ -95,6 +107,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       new Promise((_, reject) => setTimeout(() => reject('timeout'), 3000))
     ]);
   } catch(e) {}
+
+  iniciarRelojEnVivo();
 
   try {
     const savedUserId = localStorage.getItem("active_user_id");
@@ -191,7 +205,6 @@ async function login() {
 
   if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
   
-  // Protección de tiempo de espera para que nunca se congele el botón
   try {
     await Promise.race([
       syncDataFromSupabase(),
@@ -328,11 +341,10 @@ function ejecutarToggleTurno() {
     let salidaMs = now.getTime();
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
-    let horasTotales = parseFloat(diffHrs.toFixed(2));
 
     const turnoIdAActualizar = currentShift.id;
     currentShift.hora_salida = salidaMs;
-    currentShift.horas_totales = horasTotales;
+    currentShift.horas_totales = parseFloat(diffHrs.toFixed(4));
     currentShift.estado = "completado";
     guardarTurnosLocales();
 
@@ -344,7 +356,7 @@ function ejecutarToggleTurno() {
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").update({
         hora_salida: salidaMs,
-        horas_totales: horasTotales,
+        horas_totales: parseFloat(diffHrs.toFixed(4)),
         estado: "completado"
       }).eq("id", turnoIdAActualizar).then(() => {
         syncDataFromSupabase().then(() => renderTablaTrabajador());
@@ -367,43 +379,64 @@ function renderTablaTrabajador() {
   
   filtrados.forEach(t => {
     if (!porFecha[t.fecha_inicio]) {
-      porFecha[t.fecha_inicio] = { fecha: t.fecha_inicio, totalHoras: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
+      porFecha[t.fecha_inicio] = { fecha: t.fecha_inicio, totalMinutos: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
     }
     let grupo = porFecha[t.fecha_inicio];
-    grupo.totalHoras += parseFloat(t.horas_totales || 0);
     
-    let entradaObj = typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada);
-    let salidaObj = t.hora_salida ? (typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : null;
+    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+    
+    if (entMs && salMs && salMs > entMs) {
+      grupo.totalMinutos += (salMs - entMs) / (1000 * 60);
+    } else if (t.horas_totales) {
+      grupo.totalMinutos += parseFloat(t.horas_totales) * 60;
+    }
 
-    if (t.hora_entrada && (!grupo.primeraEntrada || entradaObj < new Date(grupo.primeraEntrada))) {
+    if (t.hora_entrada && (!grupo.primeraEntrada || entMs < (typeof grupo.primeraEntrada === 'number' ? grupo.primeraEntrada : new Date(grupo.primeraEntrada).getTime()))) {
       grupo.primeraEntrada = t.hora_entrada;
     }
-    if (salidaObj) {
-      if (!grupo.ultimaSalida || salidaObj > new Date(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
+    if (salMs) {
+      if (!grupo.ultimaSalida || salMs > (typeof grupo.ultimaSalida === 'number' ? grupo.ultimaSalida : new Date(grupo.ultimaSalida).getTime())) {
+        grupo.ultimaSalida = t.hora_salida;
+      }
     } else {
       grupo.enCurso = true;
     }
   });
 
-  let totalPeriodo = 0;
+  let totalMinutosPeriodo = 0;
   Object.values(porFecha).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(g => {
-    totalPeriodo += g.totalHoras;
-    const hEntrada = g.primeraEntrada ? getFormattedTime(typeof g.primeraEntrada === 'number' ? new Date(g.primeraEntrada) : new Date(g.primeraEntrada)) : '-';
-    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getFormattedTime(typeof g.ultimaSalida === 'number' ? new Date(g.ultimaSalida) : new Date(g.ultimaSalida)) : '-');
+    totalMinutosPeriodo += g.totalMinutos;
+    let horasDia = g.totalMinutos / 60;
+
+    const hEntrada = g.primeraEntrada ? getFormattedTime(g.primeraEntrada) : '-';
+    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getFormattedTime(g.ultimaSalida) : '-');
+
+    let totalMinsRedondeados = Math.round(g.totalMinutos);
+    let horasDisplay = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${totalMinsRedondeados} min`;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${g.fecha}</strong></td>
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
-      <td class="txt-green">${g.totalHoras.toFixed(2)} hrs</td>
+      <td class="txt-green">${horasDisplay}</td>
       <td><button onclick="verDetalleDia('${g.fecha}')" class="btn-action btn-gray">Detalle</button></td>
     `;
     tbody.appendChild(tr);
   });
 
+  let totalHorasPeriodo = totalMinutosPeriodo / 60;
+  let totalMinsPeriodoRedondeados = Math.round(totalMinutosPeriodo);
+  
   const labelTotal = document.getElementById("w-total-periodo");
-  if (labelTotal) labelTotal.innerText = `${totalPeriodo.toFixed(2)} hrs`;
+  if (labelTotal) {
+    if (totalMinutosPeriodo > 0 && totalHorasPeriodo < 1) {
+      labelTotal.innerText = `${totalMinsPeriodoRedondeados} min (${totalHorasPeriodo.toFixed(2)} hrs)`;
+    } else {
+      labelTotal.innerText = `${totalHorasPeriodo.toFixed(2)} hrs`;
+    }
+  }
   calcularSimuladorCobro();
 }
 
@@ -411,11 +444,30 @@ function verDetalleDia(fecha) {
   const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
+  
   listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getFormattedTime(typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada)) : '-';
-    let sal = t.hora_salida ? getFormattedTime(typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : 'En curso';
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br>Total: <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
+    let ent = t.hora_entrada ? getFormattedTime(t.hora_entrada) : '-';
+    let sal = t.hora_salida ? getFormattedTime(t.hora_salida) : 'En curso';
+    
+    let mins = 0;
+    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+    if (entMs && salMs && salMs > entMs) {
+      mins = Math.round((salMs - entMs) / (1000 * 60));
+    } else if (t.horas_totales) {
+      mins = Math.round(t.horas_totales * 60);
+    }
+
+    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
+
+    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
+            `<small>Entrada: ${ent}</small><br>` +
+            `<small>Salida: ${sal}</small><br>` +
+            `Total: <span class="txt-green">${hrsText}</span><br>` +
+            `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button>` +
+            `</div>`;
   });
+  
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
   if (modalDetalles) { modalDetalles.classList.remove("hidden"); modalDetalles.style.display = "flex"; }
@@ -428,7 +480,10 @@ function calcularSimuladorCobro() {
   const labelPeriodo = document.getElementById("w-total-periodo");
   if (!inputTarifa || !labelTotal || !labelPeriodo) return;
   let tarifa = parseFloat(inputTarifa.value) || 0;
-  let horas = parseFloat(labelPeriodo.innerText) || 0;
+  
+  let match = labelPeriodo.innerText.match(/([0-9.]+)\s*hrs/);
+  let horas = match ? parseFloat(match[1]) : (parseFloat(labelPeriodo.innerText) || 0);
+
   labelTotal.innerText = `$${(horas * tarifa).toFixed(2)}`;
   if (labelDetalle) labelDetalle.innerText = `Suma de ${horas.toFixed(2)} hrs`;
 }
@@ -459,7 +514,18 @@ function renderTablaUsuariosAdmin() {
   cachedUsers.forEach((u, index) => {
     let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
     let tipoPago = (u.tipo_pago || "Horas").trim();
-    let totalHoras = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id)).reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    
+    let totalMinsUser = 0;
+    turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id)).forEach(t => {
+      let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+      let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+      if (entMs && salMs && salMs > entMs) {
+        totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.horas_totales) {
+        totalMinsUser += parseFloat(t.horas_totales) * 60;
+      }
+    });
+    let totalHoras = totalMinsUser / 60;
     
     let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
     let tarifaLabel = tipoPago === "Gasolina" ? "1.4L/h × $0.50" : tipoPago === "Fijo" ? `$${tarifaVal.toFixed(2)} / sem` : `$${tarifaVal.toFixed(2)}`;
@@ -474,7 +540,7 @@ function renderTablaUsuariosAdmin() {
       <td>${tipoPago}</td>
       <td class="txt-green">${tarifaLabel}</td>
       <td>${u.cargo || 'Operaciones'}</td>
-      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : totalHoras.toFixed(2) + ' hrs'}</strong></td>
+      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : (totalHoras < 1 ? Math.round(totalMinsUser) + ' min' : totalHoras.toFixed(2) + ' hrs')}</strong></td>
       <td class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
       <td>
         <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon">✏️</button>
@@ -491,9 +557,16 @@ function renderHistorialAdmin() {
     const userObj = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
     const key = `${t.id_usuario}_${t.fecha_inicio}`;
     if (!agrupado[key]) {
-      agrupado[key] = { userId: t.id_usuario, nombre: userObj ? userObj.nombre : 'Desconocido', fecha: t.fecha_inicio, totalHoras: 0, activo: false, turnoActivoId: null };
+      agrupado[key] = { userId: t.id_usuario, nombre: userObj ? userObj.nombre : 'Desconocido', fecha: t.fecha_inicio, totalMins: 0, activo: false, turnoActivoId: null };
     }
-    agrupado[key].totalHoras += parseFloat(t.horas_totales || 0);
+    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+    if (entMs && salMs && salMs > entMs) {
+      agrupado[key].totalMins += (salMs - entMs) / (1000 * 60);
+    } else if (t.horas_totales) {
+      agrupado[key].totalMins += parseFloat(t.horas_totales) * 60;
+    }
+
     if (t.estado === 'en_turno' || !t.hora_salida) {
       agrupado[key].activo = true;
       agrupado[key].turnoActivoId = t.id;
@@ -505,11 +578,14 @@ function renderHistorialAdmin() {
   tbody.innerHTML = "";
 
   Object.values(agrupado).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(item => {
+    let horasDia = item.totalMins / 60;
+    let dispMins = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${Math.round(item.totalMins)} min`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${item.nombre}</strong></td>
       <td>${item.fecha}</td>
-      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}</td>
+      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
       <td>
         <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
         ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;">Forzar Salida</button>` : ''}
@@ -612,7 +688,7 @@ async function guardarHorasManuales() {
     fecha_inicio: fecha,
     hora_entrada: tEntrada,
     hora_salida: tSalida,
-    horas_totales: parseFloat(diffHrs.toFixed(2)),
+    horas_totales: parseFloat(diffHrs.toFixed(4)),
     estado: "completado",
     origen: "manual"
   };
@@ -644,7 +720,18 @@ function abrirResumenPagoModal() {
 
   cachedUsers.forEach(u => {
     const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
-    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    let totalMinsUser = 0;
+    userTurnos.forEach(t => {
+      let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+      let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+      if (entMs && salMs && salMs > entMs) {
+        totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.horas_totales) {
+        totalMinsUser += parseFloat(t.horas_totales) * 60;
+      }
+    });
+    let totalHoras = totalMinsUser / 60;
+
     let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
     let tipoPago = (u.tipo_pago || "Horas").trim();
     let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
@@ -669,8 +756,8 @@ function verDetallesAdminGlobal(userId, fecha) {
   document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getFormattedTime(typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada)) : '-';
-    let sal = t.hora_salida ? getFormattedTime(typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : 'En curso';
+    let ent = t.hora_entrada ? getFormattedTime(t.hora_entrada) : '-';
+    let sal = t.hora_salida ? getFormattedTime(t.hora_salida) : 'En curso';
     html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
   });
   document.getElementById("detalle-contenido").innerHTML = html;
@@ -686,7 +773,7 @@ async function forzarSalida(idTurno) {
       let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
       let diffHrs = Math.max(0, (now.getTime() - entMs) / (1000 * 60 * 60));
       t.hora_salida = now.getTime();
-      t.horas_totales = parseFloat(diffHrs.toFixed(2));
+      t.horas_totales = parseFloat(diffHrs.toFixed(4));
       t.estado = "completado";
       guardarTurnosLocales();
     }
