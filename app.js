@@ -1,6 +1,10 @@
-// CONFIGURACIÓN DE SUPABASE
+// CONFIGURACIÓN DE SUPABASE Y GREEN API (WHATSAPP)
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
+
+const GREEN_ID_INSTANCE = "710722771733";
+const GREEN_API_TOKEN = "5fdd00776c164fd991e9046fef49e5b20b1feffc9714406aa4";
+const WHATSAPP_GROUP_ID = "120363413840296852@g.us"; 
 
 let supabaseClient = null;
 if (window.supabase) {
@@ -11,8 +15,10 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE COPIADO DIRECTO AL PORTAPAPELES
-function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
+// FUNCIÓN DE ENVÍO AUTOMÁTICO AL GRUPO DE WHATSAPP
+async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
+  if (!WHATSAPP_GROUP_ID) return;
+
   const icono = accion === "INICIO" ? "🟢" : "🔴";
   const titulo = accion === "INICIO" ? "INICIO DE TURNO" : "FINALIZACIÓN DE TURNO";
 
@@ -22,15 +28,32 @@ function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
                   `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  // Copia el mensaje al portapapeles de forma automática
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(mensaje).then(() => {
-      alert(`✅ ¡Turno registrado y mensaje copiado al portapapeles!\n\nVe a tu grupo de WhatsApp, mantén presionado y pega el reporte.`);
-    }).catch(err => {
-      prompt("Copia el texto del reporte para enviarlo al grupo:", mensaje);
+  const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
+
+  try {
+    // Envío automático a través de pasarela proxy transparente anti-CORS
+    await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(greenApiUrl)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        chatId: WHATSAPP_GROUP_ID,
+        message: mensaje
+      })
     });
-  } else {
-    prompt("Copia el texto del reporte para enviarlo al grupo:", mensaje);
+  } catch (error) {
+    try {
+      // Método alternativo directo por si el proxy presenta intermitencia
+      await fetch(greenApiUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ chatId: WHATSAPP_GROUP_ID, message: mensaje })
+      });
+    } catch (e) {
+      console.warn("Error en envío automático:", e);
+    }
   }
 }
 
@@ -232,7 +255,7 @@ function actualizarBotonesTurno(enTurno) {
   if (!btnFichar) return;
 
   if (enTurno) {
-    btnFichar.innerText = "■ Finalizar Turno";
+    btnFжник.innerText = "■ Finalizar Turno";
     btnFichar.style.backgroundColor = "#ef4444";
     btnFichar.style.color = "#ffffff";
   } else {
@@ -296,7 +319,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // COPIAR MENSAJE AL PORTAPAPELES
+    // ENVÍO AUTOMÁTICO AL GRUPO
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
@@ -321,7 +344,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // COPIAR MENSAJE AL PORTAPAPELES
+    // ENVÍO AUTOMÁTICO AL GRUPO
     enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
 
     currentShift = null;
@@ -867,15 +890,11 @@ function copiarResumenPago() {
   const rango = document.getElementById("resumen-rango-fechas").innerText;
   const textoFinal = `📊 REPORTE DE NÓMINA\n${rango}\n\n${contenido}`;
   
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(textoFinal).then(() => {
-      alert("¡Reporte copiado al portapapeles!");
-    }).catch(err => {
-      prompt("Copia el texto del reporte:", textoFinal);
-    });
-  } else {
-    prompt("Copia el texto del reporte:", textoFinal);
-  }
+  navigator.clipboard.writeText(textoFinal).then(() => {
+    alert("¡Reporte copiado al portapapeles!");
+  }).catch(err => {
+    alert("Error al copiar: " + err);
+  });
 }
 
 function verDetallesAdminGlobal(userId, fecha) {
