@@ -15,45 +15,23 @@ if (window.supabase) {
   }
 }
 
-// CONVERSIÓN SEGURA DE FECHAS Y ZONA HORARIA VENEZUELA
-function parseToMs(val) {
-  if (!val) return 0;
-  if (typeof val === 'number') return val;
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? 0 : d.getTime();
+// FUNCIONES DE HORA Y FECHA LOCAL ORIGINALES (SIN MODIFICACIONES DE ZONA)
+function getFormattedDate(d = new Date()) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-function getVenezuelaTimeString(val = new Date()) {
+function getFormattedTime(d = new Date()) {
   try {
-    const ms = parseToMs(val);
-    const d = ms ? new Date(ms) : new Date();
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Caracas',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }).format(d);
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   } catch(e) { 
     return '--:--'; 
   }
 }
 
-function getVenezuelaDateString(val = new Date()) {
-  try {
-    const ms = parseToMs(val);
-    const d = ms ? new Date(ms) : new Date();
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Caracas',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(d); // Formato YYYY-MM-DD
-  } catch(e) { 
-    return new Date().toISOString().split('T')[0]; 
-  }
-}
-
-// ENVÍO DE WHATSAPP CON PROXY LIBRE DE BLOQUEOS
+// ENVÍO DE WHATSAPP CON PROXY
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   if (!WHATSAPP_GROUP_ID) return;
 
@@ -166,14 +144,10 @@ function initMatrixEffect() {
 
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
-  const vzlaDateStr = getVenezuelaDateString(now);
-  const parts = vzlaDateStr.split('-');
-  const localToday = new Date(parts[0], parts[1] - 1, parts[2]);
-
-  const year = localToday.getFullYear();
-  const month = localToday.getMonth();
-  const date = localToday.getDate();
-  const dayOfWeek = localToday.getDay();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const date = now.getDate();
+  const dayOfWeek = now.getDay();
   const distanceToMonday = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
   const monday = new Date(year, month, date + distanceToMonday);
   const sunday = new Date(year, month, date + distanceToMonday + 6);
@@ -295,15 +269,15 @@ function confirmarToggleTurno() {
 function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
-  const fechaStr = getVenezuelaDateString(now);
-  const horaStr = getVenezuelaTimeString(now);
+  const fechaStr = getFormattedDate(now);
+  const horaStr = getFormattedTime(now);
 
   if (!currentShift) {
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: now.toISOString(),
+      hora_entrada: now.getTime(),
       estado: "en_turno",
       origen: "sistema"
     };
@@ -319,7 +293,7 @@ function ejecutarToggleTurno() {
       supabaseClient.from("registros_turnos").insert([{
         id_usuario: Number(currentUser.id),
         fecha_inicio: fechaStr,
-        hora_entrada: now.toISOString(),
+        hora_entrada: now.getTime(),
         estado: "en_turno",
         origen: "sistema"
       }]).then(() => {
@@ -330,14 +304,18 @@ function ejecutarToggleTurno() {
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
-    let entradaMs = parseToMs(currentShift.hora_entrada);
+    let entradaMs = typeof currentShift.hora_entrada === 'number' 
+      ? currentShift.hora_entrada 
+      : new Date(currentShift.hora_entrada).getTime();
+
     let salidaMs = now.getTime();
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
+    let horasTotales = parseFloat(diffHrs.toFixed(2));
 
     const turnoIdAActualizar = currentShift.id;
-    currentShift.hora_salida = now.toISOString();
-    currentShift.horas_totales = parseFloat(diffHrs.toFixed(4));
+    currentShift.hora_salida = salidaMs;
+    currentShift.horas_totales = horasTotales;
     currentShift.estado = "completado";
     guardarTurnosLocales();
 
@@ -348,8 +326,8 @@ function ejecutarToggleTurno() {
 
     if (supabaseClient) {
       supabaseClient.from("registros_turnos").update({
-        hora_salida: now.toISOString(),
-        horas_totales: parseFloat(diffHrs.toFixed(4)),
+        hora_salida: salidaMs,
+        horas_totales: horasTotales,
         estado: "completado"
       }).eq("id", turnoIdAActualizar).then(() => {
         syncDataFromSupabase().then(() => renderTablaTrabajador());
@@ -367,111 +345,60 @@ function renderTablaTrabajador() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  const filtrados = cachedTurnos.filter(t => {
-    if (String(t.id_usuario) !== String(currentUser.id)) return false;
-    const fInicio = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    return (!desde || fInicio >= desde) && (!hasta || fInicio <= hasta);
-  });
-
+  const filtrados = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta));
   let porFecha = {};
   
   filtrados.forEach(t => {
-    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    if (!porFecha[fKey]) {
-      porFecha[fKey] = { fecha: fKey, totalMinutos: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
+    if (!porFecha[t.fecha_inicio]) {
+      porFecha[t.fecha_inicio] = { fecha: t.fecha_inicio, totalHoras: 0, primeraEntrada: null, ultimaSalida: null, enCurso: false };
     }
-    let grupo = porFecha[fKey];
+    let grupo = porFecha[t.fecha_inicio];
+    grupo.totalHoras += parseFloat(t.horas_totales || 0);
+    
+    let entradaObj = typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada);
+    let salidaObj = t.hora_salida ? (typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : null;
 
-    // Cálculo robusto de minutos por cada turno usando timestamps directos
-    let entMs = parseToMs(t.hora_entrada);
-    let salMs = parseToMs(t.hora_salida);
-    if (entMs && salMs && salMs > entMs) {
-      let diffMins = (salMs - entMs) / (1000 * 60);
-      grupo.totalMinutos += diffMins;
-    } else if (t.horas_totales) {
-      grupo.totalMinutos += parseFloat(t.horas_totales) * 60;
-    }
-
-    if (entMs && (!grupo.primeraEntrada || entMs < parseToMs(grupo.primeraEntrada))) {
+    if (t.hora_entrada && (!grupo.primeraEntrada || entradaObj < new Date(grupo.primeraEntrada))) {
       grupo.primeraEntrada = t.hora_entrada;
     }
-    if (salMs) {
-      if (!grupo.ultimaSalida || salMs > parseToMs(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
+    if (salidaObj) {
+      if (!grupo.ultimaSalida || salidaObj > new Date(grupo.ultimaSalida)) grupo.ultimaSalida = t.hora_salida;
     } else {
       grupo.enCurso = true;
     }
   });
 
-  let totalMinutosPeriodo = 0;
-
+  let totalPeriodo = 0;
   Object.values(porFecha).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(g => {
-    totalMinutosPeriodo += g.totalMinutos;
-    let horasDia = g.totalMinutos / 60;
-
-    const hEntrada = g.primeraEntrada ? getVenezuelaTimeString(g.primeraEntrada) : '-';
-    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getVenezuelaTimeString(g.ultimaSalida) : '-');
-
-    let totalMinsRedondeados = Math.round(g.totalMinutos);
-    let horasDisplay = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${totalMinsRedondeados} min`;
+    totalPeriodo += g.totalHoras;
+    const hEntrada = g.primeraEntrada ? getFormattedTime(typeof g.primeraEntrada === 'number' ? new Date(g.primeraEntrada) : new Date(g.primeraEntrada)) : '-';
+    const hSalida = g.enCurso ? '<span class="txt-green">En Curso</span>' : (g.ultimaSalida ? getFormattedTime(typeof g.ultimaSalida === 'number' ? new Date(g.ultimaSalida) : new Date(g.ultimaSalida)) : '-');
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${g.fecha}</strong></td>
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
-      <td class="txt-green">${horasDisplay}</td>
+      <td class="txt-green">${g.totalHoras.toFixed(2)} hrs</td>
       <td><button onclick="verDetalleDia('${g.fecha}')" class="btn-action btn-gray">Detalle</button></td>
     `;
     tbody.appendChild(tr);
   });
 
-  let totalHorasPeriodo = totalMinutosPeriodo / 60;
-  let totalMinsPeriodoRedondeados = Math.round(totalMinutosPeriodo);
-  
   const labelTotal = document.getElementById("w-total-periodo");
-  if (labelTotal) {
-    if (totalMinutosPeriodo > 0 && totalHorasPeriodo < 1) {
-      labelTotal.innerText = `${totalMinsPeriodoRedondeados} min (${totalHorasPeriodo.toFixed(2)} hrs)`;
-    } else {
-      labelTotal.innerText = `${totalHorasPeriodo.toFixed(2)} hrs`;
-    }
-  }
+  if (labelTotal) labelTotal.innerText = `${totalPeriodo.toFixed(2)} hrs`;
   calcularSimuladorCobro();
 }
 
 function verDetalleDia(fecha) {
-  const listaTurnos = cachedTurnos.filter(t => {
-    if (String(t.id_usuario) !== String(currentUser.id)) return false;
-    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    return fKey === fecha;
-  });
-
+  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha);
   document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
-  
   listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getVenezuelaTimeString(t.hora_entrada) : '-';
-    let sal = t.hora_salida ? getVenezuelaTimeString(t.hora_salida) : 'En curso';
-    
-    let mins = 0;
-    let entMs = parseToMs(t.hora_entrada);
-    let salMs = parseToMs(t.hora_salida);
-    if (entMs && salMs && salMs > entMs) {
-      mins = Math.round((salMs - entMs) / (1000 * 60));
-    } else if (t.horas_totales) {
-      mins = Math.round(t.horas_totales * 60);
-    }
-
-    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
-
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
-            `<small>Entrada: ${ent}</small><br>` +
-            `<small>Salida: ${sal}</small><br>` +
-            `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button>` +
-            `</div>`;
+    let ent = t.hora_entrada ? getFormattedTime(typeof t.hora_entrada === 'number' ? new Date(t.hora_entrada) : new Date(t.hora_entrada)) : '-';
+    let sal = t.hora_salida ? getFormattedTime(typeof t.hora_salida === 'number' ? new Date(t.hora_salida) : new Date(t.hora_salida)) : 'En curso';
+    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br>Total: <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
   });
-  
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
   if (modalDetalles) { modalDetalles.classList.remove("hidden"); modalDetalles.style.display = "flex"; }
@@ -484,382 +411,4 @@ function calcularSimuladorCobro() {
   const labelPeriodo = document.getElementById("w-total-periodo");
   if (!inputTarifa || !labelTotal || !labelPeriodo) return;
   let tarifa = parseFloat(inputTarifa.value) || 0;
-  
-  let match = labelPeriodo.innerText.match(/([0-9.]+)\s*hrs/);
-  let horas = match ? parseFloat(match[1]) : (parseFloat(labelPeriodo.innerText) || 0);
-
-  labelTotal.innerText = `$${(horas * tarifa).toFixed(2)}`;
-  if (labelDetalle) labelDetalle.innerText = `Suma de ${horas.toFixed(2)} hrs`;
-}
-
-async function loadAdminData() {
-  await syncDataFromSupabase();
-  renderTablaUsuariosAdmin();
-  renderHistorialAdmin();
-}
-
-function renderTablaUsuariosAdmin() {
-  const desde = document.getElementById("filtro-desde") ? document.getElementById("filtro-desde").value : "";
-  const hasta = document.getElementById("filtro-hasta") ? document.getElementById("filtro-hasta").value : "";
-  let d1 = desde ? new Date(desde) : new Date();
-  let d2 = hasta ? new Date(hasta) : new Date();
-  let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
-
-  const turnosFiltrados = cachedTurnos.filter(t => {
-    const fInicio = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    return (!desde || fInicio >= desde) && (!hasta || fInicio <= hasta);
-  });
-
-  const tbody = document.getElementById("tabla-usuarios");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  cachedUsers.forEach((u, index) => {
-    let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
-    let tipoPago = (u.tipo_pago || "Horas").trim();
-    
-    // Suma exacta basada en minutos para el admin
-    let totalMinsUser = 0;
-    turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id)).forEach(t => {
-      let entMs = parseToMs(t.hora_entrada);
-      let salMs = parseToMs(t.hora_salida);
-      if (entMs && salMs && salMs > entMs) {
-        totalMinsUser += (salMs - entMs) / (1000 * 60);
-      } else if (t.horas_totales) {
-        totalMinsUser += parseFloat(t.horas_totales) * 60;
-      }
-    });
-    let totalHoras = totalMinsUser / 60;
-    
-    let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
-    let tarifaLabel = tipoPago === "Gasolina" ? "1.4L/h × $0.50" : tipoPago === "Fijo" ? `$${tarifaVal.toFixed(2)} / sem` : `$${tarifaVal.toFixed(2)}`;
-
-    const pinId = `pin-text-${index}`;
-    const btnId = `pin-btn-${index}`;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${u.nombre}</strong></td>
-      <td><span id="${pinId}" data-pin="${u.pin}">••••</span><button id="${btnId}" onclick="togglePinVisibility('${pinId}', '${btnId}')" class="btn-icon" style="margin-left:5px;">👁️</button></td>
-      <td>${tipoPago}</td>
-      <td class="txt-green">${tarifaLabel}</td>
-      <td>${u.cargo || 'Operaciones'}</td>
-      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : (totalHoras < 1 ? Math.round(totalMinsUser) + ' min' : totalHoras.toFixed(2) + ' hrs')}</strong></td>
-      <td class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
-      <td>
-        <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon">✏️</button>
-        ${u.usuario !== 'admin' && u.usuario !== 'administrador' ? `<button onclick="borrarUsuario(${u.id})" class="btn-icon">🗑️</button>` : ''}
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function renderHistorialAdmin() {
-  let agrupado = {};
-  cachedTurnos.forEach(t => {
-    const userObj = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
-    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    const key = `${t.id_usuario}_${fKey}`;
-    if (!agrupado[key]) {
-      agrupado[key] = { userId: t.id_usuario, nombre: userObj ? userObj.nombre : 'Desconocido', fecha: fKey, totalMins: 0, activo: false, turnoActivoId: null };
-    }
-    let entMs = parseToMs(t.hora_entrada);
-    let salMs = parseToMs(t.hora_salida);
-    if (entMs && salMs && salMs > entMs) {
-      agrupado[key].totalMins += (salMs - entMs) / (1000 * 60);
-    } else if (t.horas_totales) {
-      agrupado[key].totalMins += parseFloat(t.horas_totales) * 60;
-    }
-
-    if (t.estado === 'en_turno' || !t.hora_salida) {
-      agrupado[key].activo = true;
-      agrupado[key].turnoActivoId = t.id;
-    }
-  });
-
-  const tbody = document.getElementById("tabla-asistencias");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  Object.values(agrupado).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(item => {
-    let horasDia = item.totalMins / 60;
-    let dispMins = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${Math.round(item.totalMins)} min`;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><strong>${item.nombre}</strong></td>
-      <td>${item.fecha}</td>
-      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
-      <td>
-        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
-        ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;">Forzar Salida</button>` : ''}
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-function togglePinVisibility(id, btnId) {
-  const span = document.getElementById(id);
-  const btn = document.getElementById(btnId);
-  if (span && span.dataset.pin) {
-    span.textContent = span.textContent === "••••" ? span.dataset.pin : "••••";
-    btn.textContent = span.textContent === "••••" ? "👁️" : "👁️‍🗨️";
-  }
-}
-
-function openNuevoUsuarioModal() {
-  document.getElementById("modal-user-title").innerText = "Nuevo Trabajador";
-  document.getElementById("edit-user-id").value = "";
-  document.getElementById("edit-user-nombre").value = "";
-  document.getElementById("edit-user-pin").value = "1234";
-  document.getElementById("edit-user-tipo").value = "Horas";
-  document.getElementById("edit-user-tarifa").value = "1.0";
-  document.getElementById("edit-user-cargo").value = "Operaciones";
-  document.getElementById("edit-user-rol").value = "trabajador";
-  document.getElementById("modal-usuario").classList.remove("hidden");
-  document.getElementById("modal-usuario").style.display = "flex";
-}
-
-function openEditarUsuarioModal(id) {
-  const user = cachedUsers.find(u => String(u.id) === String(id));
-  if (!user) return;
-  document.getElementById("modal-user-title").innerText = "Editar Usuario: " + user.nombre;
-  document.getElementById("edit-user-id").value = user.id;
-  document.getElementById("edit-user-nombre").value = user.nombre;
-  document.getElementById("edit-user-pin").value = user.pin;
-  document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
-  document.getElementById("edit-user-tarifa").value = user.tarifa !== undefined ? user.tarifa : 1.0;
-  document.getElementById("edit-user-cargo").value = user.cargo || "Operaciones";
-  document.getElementById("edit-user-rol").value = user.rol || "trabajador";
-  document.getElementById("modal-usuario").classList.remove("hidden");
-  document.getElementById("modal-usuario").style.display = "flex";
-}
-
-async function guardarUsuario() {
-  const id = document.getElementById("edit-user-id").value;
-  const nombre = (document.getElementById("edit-user-nombre").value || "").trim();
-  const pin = (document.getElementById("edit-user-pin").value || "").trim();
-  const tipo_pago = document.getElementById("edit-user-tipo").value;
-  const valTarifa = parseFloat(document.getElementById("edit-user-tarifa").value) || 1.0;
-  const cargo = document.getElementById("edit-user-cargo").value;
-  const rol = document.getElementById("edit-user-rol").value;
-  const usuario = nombre.toLowerCase().trim().replace(/\s+/g, '');
-
-  if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
-  let payload = { nombre, usuario, pin, tipo_pago, tarifa: valTarifa, cargo, rol };
-
-  if (supabaseClient) {
-    if (id) await supabaseClient.from("usuarios").update(payload).eq("id", id);
-    else await supabaseClient.from("usuarios").insert([payload]);
-  }
-  closeModals();
-  await loadAdminData();
-  alert("¡Trabajador guardado con éxito!");
-}
-
-async function borrarUsuario(id) {
-  if (confirm("¿Borrar usuario de forma permanente?")) {
-    if (supabaseClient) await supabaseClient.from("usuarios").delete().eq("id", id);
-    await loadAdminData();
-  }
-}
-
-function openAgregarHorasModal() {
-  const sel = document.getElementById("manual-user-select");
-  if (sel) {
-    sel.innerHTML = "";
-    cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre} (${u.tipo_pago || 'Horas'})</option>`);
-  }
-  document.getElementById("manual-fecha").value = getVenezuelaDateString();
-  document.getElementById("modal-agregar-horas").classList.remove("hidden");
-  document.getElementById("modal-agregar-horas").style.display = "flex";
-}
-
-async function guardarHorasManuales() {
-  const userId = parseInt(document.getElementById("manual-user-select").value);
-  const fecha = document.getElementById("manual-fecha").value;
-  const hEntrada = document.getElementById("manual-entrada").value;
-  const hSalida = document.getElementById("manual-salida").value;
-
-  if (!fecha || !hEntrada || !hSalida) { alert("Completa fecha y horas."); return; }
-  let tEntrada = new Date(`${fecha}T${hEntrada}:00`);
-  let tSalida = new Date(`${fecha}T${hSalida}:00`);
-  let diffHrs = Math.max(0, (tSalida - tEntrada) / (1000 * 60 * 60));
-
-  const payloadSupabase = {
-    id_usuario: userId,
-    fecha_inicio: fecha,
-    hora_entrada: tEntrada.toISOString(),
-    hora_salida: tSalida.toISOString(),
-    horas_totales: parseFloat(diffHrs.toFixed(4)),
-    estado: "completado",
-    origen: "manual"
-  };
-
-  cachedTurnos.unshift({ id: Date.now(), ...payloadSupabase });
-  guardarTurnosLocales();
-
-  if (supabaseClient) {
-    try { await supabaseClient.from("registros_turnos").insert([payloadSupabase]); } catch (e) {}
-  }
-  closeModals();
-  await loadAdminData();
-  alert("¡Horas cargadas correctamente!");
-}
-
-function abrirResumenPagoModal() {
-  const desde = document.getElementById("filtro-desde").value;
-  const hasta = document.getElementById("filtro-hasta").value;
-  if (!desde || !hasta) { alert("Selecciona el rango de fechas."); return; }
-
-  let d1 = new Date(desde);
-  let d2 = new Date(hasta);
-  let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
-  const turnosFiltrados = cachedTurnos.filter(t => {
-    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    return fKey >= desde && fKey <= hasta;
-  });
-  
-  document.getElementById("resumen-rango-fechas").innerText = `Período del ${desde} al ${hasta}`;
-  let html = `<ul style="list-style:none; padding:0; line-height:1.8;">`;
-  let granTotal = 0;
-
-  cachedUsers.forEach(u => {
-    const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
-    let totalMinsUser = 0;
-    userTurnos.forEach(t => {
-      let entMs = parseToMs(t.hora_entrada);
-      let salMs = parseToMs(t.hora_salida);
-      if (entMs && salMs && salMs > entMs) {
-        totalMinsUser += (salMs - entMs) / (1000 * 60);
-      } else if (t.horas_totales) {
-        totalMinsUser += parseFloat(t.horas_totales) * 60;
-      }
-    });
-    let totalHoras = totalMinsUser / 60;
-
-    let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
-    let tipoPago = (u.tipo_pago || "Horas").trim();
-    let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
-
-    html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${u.nombre}</strong>: <span class="txt-green">$${totalPagar.toFixed(2)}</span></li>`;
-    granTotal += totalPagar;
-  });
-
-  html += `</ul><div style="margin-top:15px; padding-top:10px; border-top:2px solid #10b981; text-align:right; font-size:1.1rem; font-weight:bold;">Total a Pagar: <span class="txt-green">$${granTotal.toFixed(2)}</span></div>`;
-  document.getElementById("resumen-pago-contenido").innerHTML = html;
-  document.getElementById("modal-resumen-pago").classList.remove("hidden");
-  document.getElementById("modal-resumen-pago").style.display = "flex";
-}
-
-function copiarResumenPago() {
-  const textoFinal = `📊 REPORTE DE NÓMINA\n` + document.getElementById("resumen-pago-contenido").innerText;
-  navigator.clipboard.writeText(textoFinal).then(() => alert("¡Reporte copiado!")).catch(err => alert("Error al copiar: " + err));
-}
-
-function verDetallesAdminGlobal(userId, fecha) {
-  const listaTurnos = cachedTurnos.filter(t => {
-    if (String(t.id_usuario) !== String(userId)) return false;
-    const fKey = t.fecha_inicio || getVenezuelaDateString(t.hora_entrada);
-    return fKey === fecha;
-  });
-
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
-  let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
-  listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getVenezuelaTimeString(t.hora_entrada) : '-';
-    let sal = t.hora_salida ? getVenezuelaTimeString(t.hora_salida) : 'En curso';
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
-  });
-  document.getElementById("detalle-contenido").innerHTML = html;
-  document.getElementById("modal-detalles").classList.remove("hidden");
-  document.getElementById("modal-detalles").style.display = "flex";
-}
-
-async function forzarSalida(idTurno) {
-  if (confirm("¿Forzar salida de este turno activo?")) {
-    const now = new Date();
-    let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
-    if (t) {
-      let entMs = parseToMs(t.hora_entrada);
-      let diffHrs = Math.max(0, (now.getTime() - entMs) / (1000 * 60 * 60));
-      t.hora_salida = now.toISOString();
-      t.horas_totales = parseFloat(diffHrs.toFixed(4));
-      t.estado = "completado";
-      guardarTurnosLocales();
-    }
-    if (supabaseClient) {
-      try { await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno); } catch (e) {}
-    }
-    await loadAdminData();
-  }
-}
-
-async function borrarTurno(id) {
-  if (confirm("¿Eliminar este registro de turno?")) {
-    cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
-    guardarTurnosLocales();
-    if (supabaseClient) {
-      try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e) {}
-    }
-    closeModals();
-    await loadAdminData();
-  }
-}
-
-function openConfigTarifasModal() {
-  document.getElementById("modal-config-tarifas").classList.remove("hidden");
-  document.getElementById("modal-config-tarifas").style.display = "flex";
-}
-
-async function aplicarTarifaGlobal() {
-  const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
-  if (isNaN(nueva)) return;
-  cachedUsers.forEach(u => {
-    if ((u.tipo_pago || "").toLowerCase() !== "gasolina" && (u.tipo_pago || "").toLowerCase() !== "fijo") u.tarifa = nueva;
-  });
-  if (supabaseClient) {
-    try {
-      for (let u of cachedUsers) {
-        if ((u.tipo_pago || "").toLowerCase() !== "gasolina" && (u.tipo_pago || "").toLowerCase() !== "fijo") {
-          await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
-        }
-      }
-    } catch (e) {}
-  }
-  closeModals();
-  loadAdminData();
-  alert("Tarifa general aplicada con éxito.");
-}
-
-function openConfigPinModal() {
-  document.getElementById("modal-config-pin").classList.remove("hidden");
-  document.getElementById("modal-config-pin").style.display = "flex";
-}
-
-async function guardarNuevoPinSeguro() {
-  const actual = document.getElementById("pin-actual-input").value.trim();
-  const nuevo = document.getElementById("pin-nuevo-input").value.trim();
-  const confirmar = document.getElementById("pin-confirmar-input").value.trim();
-
-  if (actual && actual !== String(currentUser.pin).trim()) { alert("El PIN actual no es correcto."); return; }
-  if (nuevo && nuevo !== confirmar) { alert("El nuevo PIN y su confirmación no coinciden."); return; }
-
-  if (nuevo) {
-    currentUser.pin = nuevo;
-    if (supabaseClient) {
-      try { await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id); } catch (e) {}
-    }
-    alert("PIN actualizado con éxito.");
-  }
-  closeModals();
-}
-
-function closeModals() {
-  document.querySelectorAll(".modal-backdrop").forEach(m => {
-    m.classList.add("hidden");
-    m.style.display = "none";
-  });
-}
+  let horas = parseFloat(labelPeriod
