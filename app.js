@@ -1,6 +1,10 @@
-// CONFIGURACIÓN DE SUPABASE
+// CONFIGURACIÓN DE SUPABASE Y GREEN API (WHATSAPP)
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
+
+const GREEN_ID_INSTANCE = "710722771733";
+const GREEN_API_TOKEN = "5fdd00776c164fd991e9046fef49e5b20b1feffc9714406aa4";
+const WHATSAPP_GROUP_ID = "120363413840296852@g.us"; 
 
 let supabaseClient = null;
 if (window.supabase) {
@@ -8,6 +12,33 @@ if (window.supabase) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   } catch (err) {
     console.error("Error iniciando Supabase:", err);
+  }
+}
+
+// FUNCIÓN DE NOTIFICACIÓN A WHATSAPP
+async function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
+  if (!WHATSAPP_GROUP_ID) return;
+
+  const icono = accion === "INICIO" ? "🟢" : "🔴";
+  const titulo = accion === "INICIO" ? "INICIO DE TURNO" : "FINALIZACIÓN DE TURNO";
+
+  const mensaje = `${icono} *${titulo}*\n` +
+                  `👤 *Trabajador:* ${nombreTrabajador}\n` +
+                  `📅 *Fecha:* ${fecha}\n` +
+                  `⏰ *Hora:* ${hora}\n` +
+                  `📌 *Estado:* Registrado en sistema`;
+
+  try {
+    await fetch(`https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chatId: WHATSAPP_GROUP_ID,
+        message: mensaje
+      })
+    });
+  } catch (error) {
+    console.warn("Error enviando mensaje de WhatsApp:", error);
   }
 }
 
@@ -30,16 +61,12 @@ let cachedUsers = [
 
 let cachedTurnos = [];
 
-// CARGAR TURNOS DESDE LOCALSTORAGE COMO RESPALDO INFALIBLE
+// RESPALDO LOCALSTORAGE
 function cargarTurnosLocales() {
   try {
     const local = localStorage.getItem("app_turnos_locales");
-    if (local) {
-      cachedTurnos = JSON.parse(local);
-    }
-  } catch(e) {
-    cachedTurnos = [];
-  }
+    if (local) cachedTurnos = JSON.parse(local);
+  } catch(e) { cachedTurnos = []; }
 }
 
 function guardarTurnosLocales() {
@@ -48,7 +75,7 @@ function guardarTurnosLocales() {
   } catch(e) {}
 }
 
-// INICIALIZACIÓN Y PERSISTENCIA DE SESIÓN
+// INICIALIZACIÓN DE SESIÓN
 window.addEventListener('DOMContentLoaded', async () => {
   initMatrixEffect();
   cargarTurnosLocales();
@@ -151,10 +178,7 @@ async function login() {
   const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
   const pInput = (document.getElementById("login-pin").value || "").trim();
 
-  if (!uInput || !pInput) {
-    alert("Ingresa usuario y PIN.");
-    return;
-  }
+  if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
 
   await syncDataFromSupabase();
 
@@ -168,10 +192,7 @@ async function login() {
     user = cachedUsers.find(u => u.rol === "admin");
   }
 
-  if (!user) {
-    alert("El usuario '" + uInput + "' no existe en el sistema.");
-    return;
-  }
+  if (!user) { alert("El usuario '" + uInput + "' no existe en el sistema."); return; }
 
   if (pInput === "1234" || pInput === String(user.pin).trim()) {
     currentUser = user;
@@ -202,10 +223,7 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// ==========================================
-// PANEL TRABAJADOR (INICIAR / FINALIZAR TURNO)
-// ==========================================
-
+// PANEL TRABAJADOR CON NOTIFICACIÓN DE WHATSAPP
 async function loadWorkerData() {
   if (!currentUser) return;
   await syncDataFromSupabase();
@@ -257,9 +275,10 @@ async function ejecutarToggleTurno() {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   const fechaStr = `${yyyy}-${mm}-${dd}`;
+  const horaStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   if (!currentShift) {
-    // INICIAR TURNO (BLINDADO LOCAL + SUPABASE)
+    // INICIAR TURNO
     const nuevoTurno = {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
@@ -282,10 +301,12 @@ async function ejecutarToggleTurno() {
           estado: "en_turno",
           origen: "sistema"
         }]);
-      } catch (e) {
-        console.warn("Turno guardado localmente (sin red Supabase).");
-      }
+      } catch (e) {}
     }
+
+    // ENVÍO DE ALERTA A WHATSAPP
+    enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
+
   } else {
     // FINALIZAR TURNO
     const entrada = new Date(currentShift.hora_entrada);
@@ -308,18 +329,13 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
+    // ENVÍO DE ALERTA A WHATSAPP
+    enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
+
     currentShift = null;
   }
 
   await loadWorkerData();
-}
-
-function toggleReceso() {
-  if (!currentShift) {
-    alert("Primero debes iniciar turno antes de pausar.");
-    return;
-  }
-  alert("Pausa / Receso registrado.");
 }
 
 function renderTablaTrabajador() {
@@ -425,10 +441,7 @@ function calcularSimuladorCobro() {
   }
 }
 
-// ==========================================
-// PANEL ADMINISTRADOR (REGISTRO MANUAL Y CARGA MASIVA)
-// ==========================================
-
+// PANEL ADMINISTRADOR
 async function loadAdminData() {
   await syncDataFromSupabase();
   renderTablaUsuariosAdmin();
@@ -680,14 +693,12 @@ async function guardarHorasManuales() {
   alert("¡Horas cargadas y guardadas correctamente!");
 }
 
-// NUEVA FUNCIÓN: CARGA MASIVA DE FECHAS VIEJAS POR LOTE
 function openCargaMasivaModal() {
   const sel = document.getElementById("masiva-user-select");
   if (sel) {
     sel.innerHTML = "";
     cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre} (${u.tipo_pago || 'Horas'})</option>`);
   }
-  // Generar 5 filas por defecto para ingreso rápido
   generarFilasLote(5);
 
   const modalMasiva = document.getElementById("modal-carga-masiva");
@@ -695,7 +706,6 @@ function openCargaMasivaModal() {
     modalMasiva.classList.remove("hidden");
     modalMasiva.style.display = "flex";
   } else {
-    // Si el HTML no tiene el modal creado, lo creamos dinámicamente para que no falle nunca
     crearModalMasivaHTML();
   }
 }
@@ -764,13 +774,9 @@ async function guardarCargaMasiva() {
   const userId = parseInt(document.getElementById("masiva-user-select").value);
   const filas = document.querySelectorAll(".fila-lote-item");
 
-  if (filas.length === 0) {
-    alert("Agrega al menos un registro en el lote.");
-    return;
-  }
+  if (filas.length === 0) { alert("Agrega al menos un registro en el lote."); return; }
 
   let nuevosRegistros = [];
-  let errorHoras = false;
 
   filas.forEach((fila) => {
     const fecha = fila.querySelector(".lote-fecha").value;
@@ -793,27 +799,18 @@ async function guardarCargaMasiva() {
         origen: "masivo_lote"
       };
 
-      const payloadLocal = {
-        id: Date.now() + Math.random(),
-        ...payloadSupabase
-      };
-
+      const payloadLocal = { id: Date.now() + Math.random(), ...payloadSupabase };
       nuevosRegistros.push(payloadLocal);
     }
   });
 
-  if (nuevosRegistros.length === 0) {
-    alert("Por favor completa los datos en las filas.");
-    return;
-  }
+  if (nuevosRegistros.length === 0) { alert("Por favor completa los datos en las filas."); return; }
 
-  // Insertar en caché local y ordenar por fecha descendente
   cachedTurnos = [...nuevosRegistros, ...cachedTurnos];
   guardarTurnosLocales();
 
   if (supabaseClient) {
     try {
-      // Limpiamos la propiedad temporal 'id' para que Supabase genere la suya
       let cleanPayloads = nuevosRegistros.map(({id, ...rest}) => rest);
       await supabaseClient.from("registros_turnos").insert(cleanPayloads);
     } catch (e) {}
@@ -821,7 +818,7 @@ async function guardarCargaMasiva() {
 
   closeModals();
   await loadAdminData();
-  alert(`¡${nuevosRegistros.length} registros cargados y guardados con éxito en lote!`);
+  alert(`¡${nuevosRegistros.length} registros cargados con éxito!`);
 }
 
 function abrirResumenPagoModal() {
