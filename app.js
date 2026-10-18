@@ -14,10 +14,11 @@ try {
 // ESTADO GLOBAL
 let currentUser = null;
 let currentShift = null;
+let cachedUsers = [];
 let cachedTurnos = [];
 
-// BASE DE DATOS LOCAL DE RESPALDO (Incluyendo los registros históricos de octubre)
-let cachedUsers = [
+// RESPALDO DE USUARIOS SI FALLA RED
+const fallbackUsers = [
   { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
   { id: 2, nombre: "Ronald", usuario: "ronald", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.50, cargo: "Operaciones" },
   { id: 3, nombre: "Ricardo", usuario: "ricardo", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.50, cargo: "Operaciones" },
@@ -29,6 +30,8 @@ let cachedUsers = [
   { id: 9, nombre: "Brayan", usuario: "brayan", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.50, cargo: "Operaciones" },
   { id: 10, nombre: "Planta", usuario: "planta", pin: "1234", rol: "trabajador", tipo_pago: "Gasolina", tarifa: 0.50, cargo: "Generador" }
 ];
+
+cachedUsers = [...fallbackUsers];
 
 // INICIALIZACIÓN
 window.addEventListener('DOMContentLoaded', () => {
@@ -66,7 +69,7 @@ function initMatrixEffect() {
   setInterval(draw, 33);
 }
 
-// CÁLCULO DE FECHAS (LUNES A DOMINGO EXACTO)
+// CÁLCULO DE FECHAS DE LUNES A DOMINGO (SIN DESFASE HORARIO)
 function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
   const year = now.getFullYear();
@@ -93,7 +96,21 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   if (elHasta) elHasta.value = formatDate(sunday);
 }
 
-// LOGIN
+// OBTENER DATOS DE SUPABASE
+async function syncDataFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data: users } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
+    if (users && users.length > 0) cachedUsers = users;
+
+    const { data: turnos } = await supabaseClient.from("registros_turnos").select("*").order("id", { ascending: false });
+    if (turnos) cachedTurnos = turnos;
+  } catch (e) {
+    console.warn("Usando datos de caché local.");
+  }
+}
+
+// INICIO DE SESIÓN
 async function login() {
   const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
   const pInput = (document.getElementById("login-pin").value || "").trim();
@@ -103,10 +120,12 @@ async function login() {
     return;
   }
 
+  await syncDataFromSupabase();
+
   let user = cachedUsers.find(u => 
-    u.usuario.toLowerCase() === uInput || 
-    u.nombre.toLowerCase() === uInput ||
-    (uInput === "admin" && u.rol === "admin")
+    (u.usuario || "").toLowerCase() === uInput || 
+    (u.nombre || "").toLowerCase() === uInput ||
+    (uInput === "admin" && (u.usuario === "administrador" || u.rol === "admin"))
   );
 
   if (!user) {
@@ -121,11 +140,10 @@ async function login() {
     if (user.rol === "admin") {
       document.getElementById("sec-admin").classList.remove("hidden");
       initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
-      loadAdminData();
+      await loadAdminData();
     } else {
       document.getElementById("sec-trabajador").classList.remove("hidden");
       document.getElementById("worker-title").innerText = `Trabajador: ${user.nombre}`;
-      
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
       await loadWorkerData();
     }
@@ -142,34 +160,21 @@ function logout() {
   document.getElementById("sec-login").classList.remove("hidden");
 }
 
-// CARGAR DATOS TRABAJADOR Y HISTORIAL
+// ==========================================
+// SECCIÓN PANEL TRABAJADOR
+// ==========================================
+
 async function loadWorkerData() {
   if (!currentUser) return;
+  await syncDataFromSupabase();
 
-  if (supabaseClient) {
-    try {
-      const { data, error } = await supabaseClient
-        .from("registros_turnos")
-        .select("*")
-        .eq("id_usuario", currentUser.id)
-        .order("fecha_inicio", { ascending: false });
-
-      if (!error && data) {
-        cachedTurnos = data;
-      }
-    } catch (err) {
-      console.warn("Fallo al conectar con Supabase:", err);
-    }
-  }
-
-  // Detectar si hay turno activo (estado en_turno o sin hora_salida)
-  currentShift = cachedTurnos.find(t => t.estado === "en_turno" || !t.hora_salida) || null;
+  // Buscar turno activo del usuario
+  currentShift = cachedTurnos.find(t => t.id_usuario === currentUser.id && (t.estado === "en_turno" || !t.hora_salida)) || null;
   
   actualizarBotonesTurno(!!currentShift);
   renderTablaTrabajador();
 }
 
-// CAMBIO DE APARIENCIA DEL BOTÓN (VERDE <-> ROJO)
 function actualizarBotonesTurno(enTurno) {
   const btnFichar = document.getElementById("btn-fichar");
   if (!btnFichar) return;
@@ -185,7 +190,6 @@ function actualizarBotonesTurno(enTurno) {
   }
 }
 
-// ABRIR VENTANA EMERGENTE
 function confirmarToggleTurno() {
   if (!currentUser) return;
 
@@ -193,20 +197,16 @@ function confirmarToggleTurno() {
   const titulo = enTurno ? "¿Finalizar Turno?" : "¿Iniciar Turno?";
   const mensaje = enTurno ? "¿Estás seguro que deseas finalizar tu turno?" : "¿Estás seguro que deseas iniciar un nuevo turno de trabajo?";
 
+  document.getElementById("confirm-title").innerText = titulo;
+  document.getElementById("confirm-text").innerText = mensaje;
+
   const modalConfirm = document.getElementById("modal-confirm");
-  const elTitle = document.getElementById("confirm-title");
-  const elText = document.getElementById("confirm-text");
-
-  if (elTitle) elTitle.innerText = titulo;
-  if (elText) elText.innerText = mensaje;
-
   if (modalConfirm) {
     modalConfirm.classList.remove("hidden");
     modalConfirm.style.display = "flex";
   }
 }
 
-// EJECUCIÓN AL PRESIONAR SÍ (CONFIRMAR)
 async function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
@@ -217,7 +217,7 @@ async function ejecutarToggleTurno() {
   const fechaStr = `${yyyy}-${mm}-${dd}`;
 
   if (!currentShift) {
-    // INICIAR NUEVO TURNO
+    // INICIAR TURNO
     const nuevoTurno = {
       id_usuario: currentUser.id,
       fecha_inicio: fechaStr,
@@ -248,7 +248,7 @@ async function ejecutarToggleTurno() {
       currentShift = nuevoTurno;
     }
   } else {
-    // FINALIZAR TURNO ACTIVO
+    // FINALIZAR TURNO
     const entrada = new Date(currentShift.hora_entrada);
     const salida = now;
     let diffMs = salida - entrada;
@@ -262,7 +262,7 @@ async function ejecutarToggleTurno() {
           estado: "completado"
         }).eq("id", currentShift.id);
       } catch (e) {
-        console.warn("Fallo al actualizar salida en Supabase", e);
+        console.warn("Fallo al actualizar salida:", e);
       }
     }
 
@@ -275,7 +275,6 @@ async function ejecutarToggleTurno() {
   await loadWorkerData();
 }
 
-// PAUSA / RECESO
 function toggleReceso() {
   if (!currentShift) {
     alert("Primero debes iniciar turno antes de pausar.");
@@ -284,7 +283,6 @@ function toggleReceso() {
   alert("Pausa / Receso registrado.");
 }
 
-// RENDERIZAR TABLA DE HISTORIAL Y FECHAS ANTERIORES
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde").value;
   const hasta = document.getElementById("w-filtro-hasta").value;
@@ -293,8 +291,7 @@ function renderTablaTrabajador() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  // Filtrar turnos según el rango de fechas seleccionado
-  const filtrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+  const filtrados = cachedTurnos.filter(t => t.id_usuario === currentUser.id && t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
 
   let totalHoras = 0;
 
@@ -309,19 +306,16 @@ function renderTablaTrabajador() {
       <td><strong>${t.fecha_inicio}</strong></td>
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
-      <td class="txt-green">${(t.horas_totales || 0).toFixed(2)} hrs</td>
+      <td class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</td>
       <td><button onclick="verDetalleRegistro(${t.id})" class="btn-action btn-gray">Detalle</button></td>
     `;
     tbody.appendChild(tr);
   });
 
   const labelTotal = document.getElementById("w-total-periodo");
-  if (labelTotal) {
-    labelTotal.innerText = `${totalHoras.toFixed(2)} hrs`;
-  }
+  if (labelTotal) labelTotal.innerText = `${totalHoras.toFixed(2)} hrs`;
 }
 
-// DETALLE
 function verDetalleRegistro(idTurno) {
   const t = cachedTurnos.find(x => x.id === idTurno);
   if (!t) return;
@@ -337,7 +331,7 @@ function verDetalleRegistro(idTurno) {
         <p><strong>Fecha:</strong> ${t.fecha_inicio}</p>
         <p><strong>Hora Entrada:</strong> ${hEntrada}</p>
         <p><strong>Hora Salida:</strong> ${hSalida}</p>
-        <p><strong>Total Horas:</strong> <span class="txt-green">${(t.horas_totales || 0).toFixed(2)} hrs</span></p>
+        <p><strong>Total Horas:</strong> <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span></p>
         <p><strong>Estado:</strong> ${t.estado}</p>
       </div>
     `;
@@ -349,15 +343,248 @@ function verDetalleRegistro(idTurno) {
   }
 }
 
-// CERRAR MODALES
-function closeModals() {
-  document.querySelectorAll(".modal-backdrop").forEach(m => {
-    m.classList.add("hidden");
-    m.style.display = "none";
+// ==========================================
+// SECCIÓN PANEL ADMINISTRADOR
+// ==========================================
+
+async function loadAdminData() {
+  await syncDataFromSupabase();
+  renderTablaUsuariosAdmin();
+  renderHistorialAdmin();
+}
+
+function renderTablaUsuariosAdmin() {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+
+  let d1 = new Date(desde);
+  let d2 = new Date(hasta);
+  let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+  let semanas = Math.max(1, diffDias / 7);
+
+  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+
+  const tbody = document.getElementById("tabla-usuarios");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  cachedUsers.forEach((u, index) => {
+    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? parseFloat(u.tarifa) : 1.5;
+    let tarifaLabel = `$${tarifaVal}`;
+    let tipoPago = (u.tipo_pago || "Horas").trim();
+
+    if (tipoPago === "Gasolina") tarifaLabel = "1.4L/h × $0.50";
+    else if (tipoPago === "Fijo") tarifaLabel = `$${tarifaVal} / sem`;
+
+    const userTurnos = turnosFiltrados.filter(t => t.id_usuario === u.id);
+    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    
+    let totalPagar = 0;
+    if (tipoPago === "Gasolina") {
+      let litros = totalHoras * 1.4;
+      totalPagar = litros * 0.50;
+    } else if (tipoPago === "Fijo") {
+      totalPagar = tarifaVal * semanas;
+    } else {
+      totalPagar = totalHoras * tarifaVal;
+    }
+
+    const pinId = `pin-text-${index}`;
+    const btnId = `pin-btn-${index}`;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${u.nombre}</strong></td>
+      <td>
+        <span id="${pinId}" data-pin="${u.pin}">••••</span>
+        <button id="${btnId}" onclick="togglePinVisibility('${pinId}', '${btnId}')" class="btn-icon" style="margin-left:5px;" title="Ver PIN">👁️</button>
+      </td>
+      <td>${tipoPago}</td>
+      <td class="txt-green">${tarifaLabel}</td>
+      <td>${u.cargo || 'Operaciones'}</td>
+      <td class="txt-green"><strong>${tipoPago === 'Fijo' ? '-' : totalHoras.toFixed(2) + ' hrs'}</strong></td>
+      <td class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
+      <td>
+        <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon" title="Editar">✏️</button>
+        ${u.usuario !== 'admin' && u.usuario !== 'administrador' ? `<button onclick="borrarUsuario(${u.id})" class="btn-icon" title="Borrar">🗑️</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
 }
 
-function loadAdminData() {}
+function renderHistorialAdmin() {
+  let agrupado = {};
+  cachedTurnos.forEach(t => {
+    const userObj = cachedUsers.find(u => u.id === t.id_usuario);
+    const uNombre = userObj ? userObj.nombre : 'Desconocido';
+    const fecha = t.fecha_inicio;
+    const key = `${t.id_usuario}_${fecha}`;
+
+    if (!agrupado[key]) {
+      agrupado[key] = { userId: t.id_usuario, nombre: uNombre, fecha: fecha, totalHoras: 0, activo: false, turnoActivoId: null };
+    }
+    agrupado[key].totalHoras += parseFloat(t.horas_totales || 0);
+    if (t.estado === 'en_turno' || !t.hora_salida) {
+      agrupado[key].activo = true;
+      agrupado[key].turnoActivoId = t.id;
+    }
+  });
+
+  const tbody = document.getElementById("tabla-asistencias");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  Object.values(agrupado).sort((a,b) => b.fecha.localeCompare(a.fecha)).forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${item.nombre}</strong></td>
+      <td>${item.fecha}</td>
+      <td>
+        ${item.activo ? '<span class="pulse-dot" title="Activo"></span><span class="txt-green">En Turno Activo</span>' : `<span class="txt-green">${item.totalHoras.toFixed(2)} hrs</span>`}
+      </td>
+      <td>
+        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
+        ${item.activo ? `<button onclick="forzarSalida(${item.turnoActivoId})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px;" title="Forzar salida">Forzar Salida</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function togglePinVisibility(id, btnId) {
+  const span = document.getElementById(id);
+  const btn = document.getElementById(btnId);
+  if (span && span.dataset.pin) {
+    if (span.textContent === "••••") {
+      span.textContent = span.dataset.pin;
+      btn.textContent = "👁️‍🗨️";
+    } else {
+      span.textContent = "••••";
+      btn.textContent = "👁️";
+    }
+  }
+}
+
+function verDetallesAdminGlobal(userId, fecha) {
+  const listaTurnos = cachedTurnos.filter(t => t.id_usuario === userId && t.fecha_inicio === fecha);
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de Turnos`;
+  let html = `<p>Sesiones del día ${fecha}:</p><hr style="border-color:#334155; margin:10px 0;">`;
+  
+  listaTurnos.forEach((t) => {
+    html += `
+      <div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">
+        <small>Entrada: ${new Date(t.hora_entrada).toLocaleString()}</small><br>
+        <small>Salida: ${t.hora_salida ? new Date(t.hora_salida).toLocaleString() : 'En curso'}</small><br>
+        Horas: <span class="txt-green">${(parseFloat(t.horas_totales) || 0).toFixed(2)} hrs</span><br>
+        <button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar Registro</button>
+      </div>
+    `;
+  });
+
+  document.getElementById("detalle-contenido").innerHTML = html;
+  const modalDetalles = document.getElementById("modal-detalles");
+  if (modalDetalles) {
+    modalDetalles.classList.remove("hidden");
+    modalDetalles.style.display = "flex";
+  }
+}
+
+async function forzarSalida(idTurno) {
+  if (confirm("¿Forzar salida de este turno activo?")) {
+    const now = new Date();
+    if (supabaseClient) {
+      await supabaseClient.from("registros_turnos").update({ hora_salida: now.toISOString(), estado: "completado" }).eq("id", idTurno);
+    }
+    await loadAdminData();
+  }
+}
+
+async function borrarTurno(id) {
+  if (confirm("¿Eliminar este registro de turno?")) {
+    if (supabaseClient) {
+      await supabaseClient.from("registros_turnos").delete().eq("id", id);
+    }
+    closeModals();
+    await loadAdminData();
+  }
+}
+
+function abrirResumenPagoModal() {
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+  if (!desde || !hasta) { alert("Selecciona el rango de fechas."); return; }
+
+  let d1 = new Date(desde);
+  let d2 = new Date(hasta);
+  let diffDias = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+  let semanas = Math.max(1, diffDias / 7);
+
+  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+  
+  document.getElementById("resumen-rango-fechas").innerText = `Período del ${desde} al ${hasta}`;
+  
+  let html = `<ul style="list-style:none; padding:0;">`;
+  let granTotal = 0;
+
+  cachedUsers.forEach(u => {
+    const userTurnos = turnosFiltrados.filter(t => t.id_usuario === u.id);
+    let totalHoras = userTurnos.reduce((acc, curr) => acc + parseFloat(curr.horas_totales || 0), 0);
+    let tarifaVal = u.tarifa !== undefined && u.tarifa !== null ? parseFloat(u.tarifa) : 1.5;
+    let totalPagar = 0;
+    let tipoPago = (u.tipo_pago || "Horas").trim();
+
+    if (tipoPago === "Gasolina") {
+      let litros = totalHoras * 1.4;
+      totalPagar = litros * 0.50;
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${u.nombre}</strong> (Planta - Gasolina): ${totalHoras.toFixed(2)} hrs (${litros.toFixed(1)} L) = <span class="txt-green">$${totalPagar.toFixed(2)}</span></li>`;
+    } else if (tipoPago === "Fijo") {
+      totalPagar = tarifaVal * semanas;
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${u.nombre}</strong> (Administrador - Fijo): ${semanas.toFixed(1)} sem = <span class="txt-green">$${totalPagar.toFixed(2)}</span></li>`;
+    } else {
+      totalPagar = totalHoras * tarifaVal;
+      html += `<li style="padding:6px 0; border-bottom:1px solid #334155;"><strong>${u.nombre}</strong>: ${totalHoras.toFixed(2)} hrs = <span class="txt-green">$${totalPagar.toFixed(2)}</span></li>`;
+    }
+    granTotal += totalPagar;
+  });
+
+  html += `</ul>`;
+  html += `<div style="margin-top:15px; padding-top:10px; border-top:2px solid #10b981; text-align:right; font-size:1.1rem; font-weight:bold;">Gran Total a Pagar: <span class="txt-green">$${granTotal.toFixed(2)}</span></div>`;
+
+  document.getElementById("resumen-pago-contenido").innerHTML = html;
+  const modalResumen = document.getElementById("modal-resumen-pago");
+  if (modalResumen) {
+    modalResumen.classList.remove("hidden");
+    modalResumen.style.display = "flex";
+  }
+}
+
+function copiarResumenPago() {
+  const contenido = document.getElementById("resumen-pago-contenido").innerText;
+  const rango = document.getElementById("resumen-rango-fechas").innerText;
+  const textoFinal = `📊 REPORTE DE NÓMINA\n${rango}\n\n${contenido}`;
+  
+  navigator.clipboard.writeText(textoFinal).then(() => {
+    alert("¡Resumen copiado al portapapeles listo para enviar!");
+  }).catch(err => {
+    alert("Error al copiar: " + err);
+  });
+}
+
+function exportarExcel() {
+  let csv = "Usuario,Fecha,Horas\n";
+  cachedTurnos.forEach(t => {
+    const u = cachedUsers.find(x => x.id === t.id_usuario);
+    csv += `${u ? u.nombre : 'Usuario'},${t.fecha_inicio},${t.horas_totales}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', 'reporte_asistencia.csv');
+  a.click();
+}
+
 function openConfigPinModal() {
   const modalPin = document.getElementById("modal-config-pin");
   if (modalPin) {
@@ -365,7 +592,168 @@ function openConfigPinModal() {
     modalPin.style.display = "flex";
   }
 }
-function guardarNuevoPinSeguro() {
+
+async function guardarNuevoPinSeguro() {
+  const actual = document.getElementById("pin-actual-input").value.trim();
+  const nuevo = document.getElementById("pin-nuevo-input").value.trim();
+  const confirmar = document.getElementById("pin-confirmar-input").value.trim();
+
+  if (actual && actual !== String(currentUser.pin).trim()) { alert("El PIN actual no es correcto."); return; }
+  if (nuevo && nuevo !== confirmar) { alert("El nuevo PIN y su confirmación no coinciden."); return; }
+
+  if (nuevo) {
+    currentUser.pin = nuevo;
+    if (supabaseClient) {
+      await supabaseClient.from("usuarios").update({ pin: nuevo }).eq("id", currentUser.id);
+    }
+    alert("PIN actualizado con éxito.");
+  }
   closeModals();
-  alert("Configuración guardada.");
+}
+
+function openNuevoUsuarioModal() {
+  document.getElementById("modal-user-title").innerText = "Nuevo Trabajador";
+  document.getElementById("edit-user-id").value = "";
+  document.getElementById("edit-user-nombre").value = "";
+  document.getElementById("edit-user-pin").value = "1234";
+  document.getElementById("edit-user-tipo").value = "Horas";
+  document.getElementById("edit-user-tarifa").value = "1.5";
+  document.getElementById("edit-user-cargo").value = "Operaciones";
+  document.getElementById("edit-user-rol").value = "trabajador";
+  
+  const modalUser = document.getElementById("modal-usuario");
+  if (modalUser) {
+    modalUser.classList.remove("hidden");
+    modalUser.style.display = "flex";
+  }
+}
+
+function openEditarUsuarioModal(id) {
+  const user = cachedUsers.find(u => u.id === id);
+  if (!user) return;
+
+  document.getElementById("modal-user-title").innerText = "Editar Usuario: " + user.nombre;
+  document.getElementById("edit-user-id").value = user.id;
+  document.getElementById("edit-user-nombre").value = user.nombre;
+  document.getElementById("edit-user-pin").value = user.pin;
+  document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
+  document.getElementById("edit-user-tarifa").value = user.tarifa !== undefined ? user.tarifa : 1.5;
+  document.getElementById("edit-user-cargo").value = user.cargo || "Operaciones";
+  document.getElementById("edit-user-rol").value = user.rol || "trabajador";
+  
+  const modalUser = document.getElementById("modal-usuario");
+  if (modalUser) {
+    modalUser.classList.remove("hidden");
+    modalUser.style.display = "flex";
+  }
+}
+
+async function guardarUsuario() {
+  const id = document.getElementById("edit-user-id").value;
+  const nombre = (document.getElementById("edit-user-nombre").value || "").trim();
+  const pin = (document.getElementById("edit-user-pin").value || "").trim();
+  const tipo_pago = document.getElementById("edit-user-tipo").value;
+  const valTarifa = parseFloat(document.getElementById("edit-user-tarifa").value) || (tipo_pago === 'Fijo' ? 150 : 1.5);
+  const cargo = document.getElementById("edit-user-cargo").value;
+  const rol = document.getElementById("edit-user-rol").value;
+  const usuario = nombre.toLowerCase().trim().replace(/\s+/g, '');
+
+  if (!nombre || !pin) { alert("Ingresa nombre y PIN."); return; }
+
+  const payload = { nombre, usuario, pin, tipo_pago, tarifa: valTarifa, cargo, rol };
+
+  if (id && supabaseClient) {
+    await supabaseClient.from("usuarios").update(payload).eq("id", id);
+  } else if (supabaseClient) {
+    await supabaseClient.from("usuarios").insert([payload]);
+  }
+
+  closeModals();
+  await loadAdminData();
+  alert("¡Guardado con éxito!");
+}
+
+async function borrarUsuario(id) {
+  if (confirm("¿Borrar usuario?") && supabaseClient) {
+    await supabaseClient.from("usuarios").delete().eq("id", id);
+    await loadAdminData();
+  }
+}
+
+function openConfigTarifasModal() {
+  const modalTarifas = document.getElementById("modal-config-tarifas");
+  if (modalTarifas) {
+    modalTarifas.classList.remove("hidden");
+    modalTarifas.style.display = "flex";
+  }
+}
+
+async function aplicarTarifaGlobal() {
+  const nueva = parseFloat(document.getElementById("global-tarifa-input").value);
+  if (isNaN(nueva)) return;
+
+  if (supabaseClient) {
+    for (let u of cachedUsers) {
+      const tipo = (u.tipo_pago || "Horas").trim().toLowerCase();
+      if (tipo !== "gasolina" && tipo !== "fijo") {
+        await supabaseClient.from("usuarios").update({ tarifa: nueva }).eq("id", u.id);
+      }
+    }
+  }
+
+  closeModals();
+  await loadAdminData();
+  alert("Tarifa general aplicada con éxito.");
+}
+
+function openAgregarHorasModal() {
+  const sel = document.getElementById("manual-user-select");
+  sel.innerHTML = "";
+  cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre} (${u.tipo_pago || 'Horas'})</option>`);
+  document.getElementById("manual-fecha").value = new Date().toISOString().split("T")[0];
+  
+  const modalAgregar = document.getElementById("modal-agregar-horas");
+  if (modalAgregar) {
+    modalAgregar.classList.remove("hidden");
+    modalAgregar.style.display = "flex";
+  }
+}
+
+async function guardarHorasManuales() {
+  const userId = document.getElementById("manual-user-select").value;
+  const fecha = document.getElementById("manual-fecha").value;
+  const hEntrada = document.getElementById("manual-entrada").value;
+  const hSalida = document.getElementById("manual-salida").value;
+
+  if (!fecha || !hEntrada || !hSalida) { alert("Completa fecha y horas."); return; }
+
+  let tEntrada = new Date(`${fecha}T${hEntrada}:00`);
+  let tSalida = new Date(`${fecha}T${hSalida}:00`);
+  let diffHrs = (tSalida - tEntrada) / (1000 * 60 * 60);
+  if (diffHrs < 0) diffHrs += 24;
+
+  const payload = {
+    id_usuario: parseInt(userId),
+    fecha_inicio: fecha,
+    hora_entrada: tEntrada.toISOString(),
+    hora_salida: tSalida.toISOString(),
+    horas_totales: parseFloat(diffHrs.toFixed(2)),
+    estado: "completado",
+    origen: "manual"
+  };
+
+  if (supabaseClient) {
+    await supabaseClient.from("registros_turnos").insert([payload]);
+  }
+
+  closeModals();
+  await loadAdminData();
+  alert("¡Horas registradas correctamente!");
+}
+
+function closeModals() {
+  document.querySelectorAll(".modal-backdrop").forEach(m => {
+    m.classList.add("hidden");
+    m.style.display = "none";
+  });
 }
