@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Asistencia - Matrix</title>
-  <link rel="stylesheet" href="style.css?v=30">
+  <link rel="stylesheet" href="style.css?v=35">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -93,12 +93,11 @@
         <button onclick="openAgregarHorasModal()" class="btn-action btn-green">+ Agregar Horas</button>
         <button onclick="openConfigTarifasModal()" class="btn-action btn-orange">⚙ Tarifas</button>
         <button onclick="abrirResumenPagoModal()" class="btn-action btn-green" style="background:#059669; font-weight:bold;">📋 Enviar Reporte</button>
-        <button onclick="exportarExcel()" class="btn-action btn-refresh" title="Exportar CSV">📊</button>
         <button onclick="logout()" class="btn-action btn-red">Salir</button>
       </div>
     </div>
 
-    <!-- ÁREA 1: PERSONAL REGISTRADO, TARIFAS Y HORAS ACUMULADAS -->
+    <!-- ÁREA 1: PERSONAL REGISTRADO -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Personal Registrado, Tarifas y Horas Acumuladas</span>
@@ -128,7 +127,7 @@
       </div>
     </div>
 
-    <!-- ÁREA 2: HISTORIAL DE HORAS REGISTRADAS -->
+    <!-- ÁREA 2: HISTORIAL DE HORAS Y TRABAJADORES EN LÍNEA -->
     <div class="card-matrix glass-panel">
       <div class="card-header-between">
         <span class="card-header-title">Historial de Horas Registradas (Por Trabajador y Día)</span>
@@ -295,6 +294,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
