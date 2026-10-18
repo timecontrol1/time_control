@@ -2,8 +2,6 @@
 const SUPABASE_URL = "https://exolwlcrstqffqylsoku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_n6esYWCYBxj95U72gq8gjg_8dTIjvrB";
 
-const WHATSAPP_GROUP_PHONE = "120363413840296852"; // ID del grupo adaptado para enlace directo
-
 let supabaseClient = null;
 if (window.supabase) {
   try {
@@ -13,22 +11,27 @@ if (window.supabase) {
   }
 }
 
-// FUNCIÓN DE NOTIFICACIÓN DIRECTA A WHATSAPP (INFALIBLE)
+// FUNCIÓN DE COPIADO DIRECTO AL PORTAPAPELES
 function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
   const icono = accion === "INICIO" ? "🟢" : "🔴";
   const titulo = accion === "INICIO" ? "INICIO DE TURNO" : "FINALIZACIÓN DE TURNO";
 
-  const mensaje = `${icono} *${titulo}*%0A` +
-                  `👤 *Trabajador:* ${nombreTrabajador}%0A` +
-                  `📅 *Fecha:* ${fecha}%0A` +
-                  `⏰ *Hora:* ${hora}%0A` +
+  const mensaje = `${icono} *${titulo}*\n` +
+                  `👤 *Trabajador:* ${nombreTrabajador}\n` +
+                  `📅 *Fecha:* ${fecha}\n` +
+                  `⏰ *Hora:* ${hora}\n` +
                   `📌 *Estado:* Registrado en sistema`;
 
-  // Abrir enlace directo de WhatsApp al grupo para envío inmediato
-  const whatsappUrl = `https://wa.me/${WHATSAPP_GROUP_PHONE}?text=${mensaje}`;
-  
-  // Abre una pestaña o ventana invisible/rápida para disparar el mensaje
-  window.open(whatsappUrl, '_blank');
+  // Copia el mensaje al portapapeles de forma automática
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(mensaje).then(() => {
+      alert(`✅ ¡Turno registrado y mensaje copiado al portapapeles!\n\nVe a tu grupo de WhatsApp, mantén presionado y pega el reporte.`);
+    }).catch(err => {
+      prompt("Copia el texto del reporte para enviarlo al grupo:", mensaje);
+    });
+  } else {
+    prompt("Copia el texto del reporte para enviarlo al grupo:", mensaje);
+  }
 }
 
 // ESTADO GLOBAL
@@ -293,7 +296,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // DISPARAR MENSAJE AL GRUPO DE WHATSAPP
+    // COPIAR MENSAJE AL PORTAPAPELES
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
@@ -318,7 +321,7 @@ async function ejecutarToggleTurno() {
       } catch (e) {}
     }
 
-    // DISPARAR MENSAJE AL GRUPO DE WHATSAPP
+    // COPIAR MENSAJE AL PORTAPAPELES
     enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
 
     currentShift = null;
@@ -864,11 +867,15 @@ function copiarResumenPago() {
   const rango = document.getElementById("resumen-rango-fechas").innerText;
   const textoFinal = `📊 REPORTE DE NÓMINA\n${rango}\n\n${contenido}`;
   
-  navigator.clipboard.writeText(textoFinal).then(() => {
-    alert("¡Reporte copiado al portapapeles!");
-  }).catch(err => {
-    alert("Error al copiar: " + err);
-  });
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(textoFinal).then(() => {
+      alert("¡Reporte copiado al portapapeles!");
+    }).catch(err => {
+      prompt("Copia el texto del reporte:", textoFinal);
+    });
+  } else {
+    prompt("Copia el texto del reporte:", textoFinal);
+  }
 }
 
 function verDetallesAdminGlobal(userId, fecha) {
