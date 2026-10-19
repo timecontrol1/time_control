@@ -145,7 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
   iniciarRelojEnVivo();
 
   syncDataFromSupabase();
-  setInterval(syncDataFromSupabase, 4000);
+  setInterval(syncDataFromSupabase, 3000); // Sincronización en tiempo real cada 3 segundos
 
   try {
     const savedUserId = localStorage.getItem("active_user_id");
@@ -222,7 +222,7 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   if (elHasta) elHasta.value = formatDate(sunday);
 }
 
-// SINCRONIZACIÓN PERSISTENTE INTELIGENTE
+// SINCRONIZACIÓN PERSISTENTE MEJORADA PARA TURNOS Y USUARIOS ACTIVO
 async function syncDataFromSupabase() {
   if (!supabaseClient) return;
   try {
@@ -233,10 +233,10 @@ async function syncDataFromSupabase() {
     if (!errT && turnosRemote) {
       let mapTurnos = new Map();
       
-      // Mantiene turnos locales creados para que no desaparezcan nunca
+      // Conserva turnos locales recientes para evitar pérdida en recargas
       cachedTurnos.forEach(t => mapTurnos.set(String(t.id), t));
       
-      // Agrega/actualiza con los provenientes de la nube Supabase
+      // Integra los datos actualizados de Supabase (incluyendo manuales y turnos en vivo de otras PCs)
       turnosRemote.forEach(t => mapTurnos.set(String(t.id), t));
       
       cachedTurnos = Array.from(mapTurnos.values()).sort((a,b) => b.hora_entrada - a.hora_entrada);
@@ -424,6 +424,7 @@ async function ejecutarToggleTurno() {
   }
 }
 
+// RENDER HISTORIAL DE REPORTES DEL TRABAJADOR
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
@@ -573,7 +574,7 @@ async function actualizarTarifaUsuarioAdmin(userId, nuevaTarifa) {
   }
 }
 
-// HISTORIAL DE REPORTES EN ORDEN DESCENDENTE (ACTUALES ARRIBA)
+// HISTORIAL DE REPORTES EN ADMINISTRACIÓN (ACTUALES ARRIBA, INCLUYENDO ACTIVOS)
 function renderHistorialAdmin() {
   const desde = document.getElementById("filtro-desde") ? document.getElementById("filtro-desde").value : "";
   const hasta = document.getElementById("filtro-hasta") ? document.getElementById("filtro-hasta").value : "";
@@ -838,6 +839,7 @@ function openAgregarHorasModal() {
   document.getElementById("modal-agregar-horas").style.display = "flex";
 }
 
+// GUARDAR HORAS MANUALES CON PERSISTENCIA INMEDIATA Y SINCRONIZACIÓN
 async function guardarHorasManuales() {
   const userId = parseInt(document.getElementById("manual-user-select").value);
   const fechaInicio = document.getElementById("manual-fecha-inicio").value;
