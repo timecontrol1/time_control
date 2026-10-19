@@ -351,10 +351,13 @@
 
     <div class="flex-row" style="margin-bottom: 20px;">
       <button onclick="openNuevoUsuarioModal()" class="btn-action" style="background:#3b82f6; color:#fff;">+ Nuevo Trabajador</button>
+      <button onclick="abrirImportacionWhatsApp()" class="btn-action btn-gray">📋 Importar WhatsApp</button>
       <button onclick="openAgregarHorasModal()" class="btn-action btn-gray">+ Cargar Horas Manual</button>
       <button onclick="abrirResumenPagoModal()" class="btn-action" style="background:#10b981; color:#022c22;">📊 Resumen de Pago</button>
     </div>
 
+    <p id="presence-status" style="margin-bottom:8px;color:#10b981">Presencia: conectando...</p>
+    <p id="sync-status" style="margin-bottom:10px;color:#94a3b8">Sincronizando con Supabase...</p>
     <h4 style="margin-bottom: 10px; color:var(--text-muted);">Listado de Trabajadores & Nómina</h4>
     <div style="overflow-x: auto; margin-bottom: 25px;">
       <table>
@@ -553,6 +556,13 @@
     </div>
   </div>
 
+<div id="modal-importar-whatsapp" class="modal-backdrop hidden" style="display:none;z-index:9999">
+<div style="background:#0f172a;color:#fff;border:1px solid #334155;border-radius:14px;padding:20px;width:min(92vw,650px);max-height:85vh;overflow:auto">
+<h3>📋 Importar reportes de WhatsApp</h3><p style="margin:10px 0">Pega uno o varios mensajes completos. Verifica el resultado antes de guardar.</p>
+<textarea id="texto-whatsapp" style="width:100%;min-height:160px;background:#1e293b;color:#fff;padding:10px" placeholder="🟢 INICIO DE TURNO ..."></textarea>
+<div id="vista-importacion" style="margin:12px 0;max-height:200px;overflow:auto"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-action" onclick="previsualizarWhatsApp()">Analizar</button><button class="btn-action" onclick="confirmarImportacionWhatsApp()">Confirmar importación</button><button class="btn-action btn-gray" onclick="document.getElementById('modal-importar-whatsapp').style.display='none';document.getElementById('modal-importar-whatsapp').classList.add('hidden')">Cerrar</button></div>
+</div></div>
   <script src="app.js"></script>
 </body>
 </html>
