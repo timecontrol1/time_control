@@ -49,7 +49,6 @@
       opacity: 0.15;
     }
 
-    /* RELOJ GLOBAL PEQUEÑO */
     .reloj-global-container {
       width: 100%;
       max-width: 480px;
@@ -260,12 +259,11 @@
 
   <canvas id="matrix-canvas"></canvas>
 
-  <!-- RELOJ GLOBAL PEQUEÑO -->
   <div class="reloj-global-container">
     <div id="reloj-venezuela">🇻🇪 Hora Actualizada</div>
   </div>
 
-  <!-- SECCIÓN DE LOGIN -->
+  <!-- LOGIN -->
   <div id="sec-login" class="container">
     <h2>Control de Asistencia</h2>
     <div class="form-group">
@@ -279,7 +277,7 @@
     <button onclick="login()" style="width: 100%;">Ingresar al Sistema</button>
   </div>
 
-  <!-- SECCIÓN DE TRABAJADOR -->
+  <!-- TRABAJADOR -->
   <div id="sec-trabajador" class="container hidden">
     <div class="header-bar">
       <div>
@@ -338,7 +336,7 @@
     </div>
   </div>
 
-  <!-- SECCIÓN DE ADMINISTRADOR -->
+  <!-- ADMIN -->
   <div id="sec-admin" class="container container-admin hidden">
     <div class="header-bar">
       <div>
@@ -426,7 +424,7 @@
     </div>
   </div>
 
-  <!-- MODAL DE EDICIÓN DE TURNO (IDÉNTICO A TU REFERENCIA) -->
+  <!-- MODAL DE EDICIÓN DE TURNO -->
   <div id="modal-editar-turno" class="modal-backdrop">
     <div class="modal-content">
       <h3 style="display:flex; align-items:center; justify-content:center; gap:8px; color: #10b981;">✏️ Editar Registro de Turno</h3>
@@ -490,7 +488,6 @@
     </div>
   </div>
 
-  <!-- MODAL: CARGAR HORAS MANUALES CON DOS FECHAS -->
   <div id="modal-agregar-horas" class="modal-backdrop">
     <div class="modal-content">
       <h3>Cargar Horas Manuales</h3>
@@ -525,12 +522,12 @@
     </div>
   </div>
 
-  <!-- MODAL: REPORTE DE NÓMINA -->
+  <!-- REPORTE DE NÓMINA (AJUSTADO) -->
   <div id="modal-resumen-pago" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 500px; height: auto;">
+    <div class="modal-content" style="max-width: 550px; height: auto;">
       <h3>Reporte de Nómina</h3>
       <p id="resumen-rango-fechas" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px; text-align:center;"></p>
-      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px;"></div>
+      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
       <div class="flex-row">
         <button onclick="copiarResumenPago()" class="btn-action" style="background:#3b82f6; color:#fff;">📋 Copiar Reporte</button>
         <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
@@ -538,7 +535,6 @@
     </div>
   </div>
 
-  <!-- MODAL: CONFIG TARIFA GLOBAL -->
   <div id="modal-config-tarifas" class="modal-backdrop">
     <div class="modal-content">
       <h3>Aplicar Tarifa Global</h3>
@@ -576,7 +572,6 @@
     </div>
   </div>
 
-  <!-- Archivo JavaScript Principal -->
   <script src="app.js"></script>
 </body>
 </html>
