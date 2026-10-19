@@ -102,7 +102,7 @@ function copiarReportePortapapeles(nombreTrabajador, accion, fechaEntrada, horaE
   }
 
   navigator.clipboard.writeText(mensaje).then(() => {
-    alert(`¡Turno ${accion === "INICIO" ? "iniciado" : "finalizado"}!\n\n📋 Se ha copiado el reporte al portapapeles. Ya puedes pegarlo en el grupo de WhatsApp.`);
+    alert(`¡Turno ${accion === "INICIO" ? "iniciado" : "finalizado"}!\n\n📋 Reporte copiado al portapapeles para WhatsApp.`);
   }).catch(err => {
     alert(`Turno ${accion === "INICIO" ? "iniciado" : "finalizado"}.`);
   });
@@ -173,7 +173,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ESCUCHA EN TIEMPO REAL DIRECTA CON SUPABASE
 function configurarRealtimeSupabase() {
   if (!supabaseClient) return;
   try {
@@ -183,9 +182,7 @@ function configurarRealtimeSupabase() {
         syncDataFromSupabase();
       })
       .subscribe();
-  } catch (err) {
-    console.warn("Realtime no disponible:", err);
-  }
+  } catch (err) {}
 }
 
 function initMatrixEffect() {
@@ -238,13 +235,11 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   if (elHasta && !elHasta.value) elHasta.value = formatDate(sunday);
 }
 
-// SINCRONIZACIÓN CORREGIDA Y UNIFICADA
 async function syncDataFromSupabase() {
   if (!supabaseClient) return;
   try {
     const { data: users, error: errU } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
     if (!errU && users && users.length > 0) {
-      // Filtrar y asegurar usuario único para el administrador "Ángel"
       let arrUnicos = [];
       users.forEach(u => {
         if (u.usuario === 'administrador' || u.rol === 'admin') {
@@ -262,7 +257,6 @@ async function syncDataFromSupabase() {
     const { data: turnosRemote, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("hora_entrada", { ascending: false });
     if (!errT && turnosRemote) {
       let mapTurnos = new Map();
-      
       cachedTurnos.forEach(t => mapTurnos.set(String(t.id), t));
       turnosRemote.forEach(t => mapTurnos.set(String(t.id), t));
       
@@ -274,9 +268,7 @@ async function syncDataFromSupabase() {
         else loadWorkerData();
       }
     }
-  } catch (e) {
-    console.warn("Sincronización Supabase:", e);
-  }
+  } catch (e) {}
 }
 
 function login() {
@@ -451,7 +443,6 @@ async function ejecutarToggleTurno() {
   }
 }
 
-// MOSTRAR HISTORIAL COMPLETO Y MANTENER VISIBLE TURNOS EN VIVO O ANTERIORES
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
@@ -461,7 +452,7 @@ function renderTablaTrabajador() {
 
   const filtrados = cachedTurnos.filter(t => {
     if (String(t.id_usuario) !== String(currentUser.id)) return false;
-    if (t.estado === 'en_turno' || !t.hora_salida) return true; // Mostrar siempre el activo en vivo
+    if (t.estado === 'en_turno' || !t.hora_salida) return true;
     if (desde && t.fecha_inicio < desde) return false;
     if (hasta && t.fecha_inicio > hasta) return false;
     return true;
@@ -603,13 +594,12 @@ async function actualizarTarifaUsuarioAdmin(userId, nuevaTarifa) {
   }
 }
 
-// RENDEREAR HISTORIAL ADMIN INCLUYENDO SIEMPRE TURNOS EN VIVO ACTIVO
 function renderHistorialAdmin() {
   const desde = document.getElementById("filtro-desde") ? document.getElementById("filtro-desde").value : "";
   const hasta = document.getElementById("filtro-hasta") ? document.getElementById("filtro-hasta").value : "";
   
   const turnosFiltrados = cachedTurnos.filter(t => {
-    if (t.estado === 'en_turno' || !t.hora_salida) return true; // MOSTRAR SIEMPRE TURNOS EN VIVO
+    if (t.estado === 'en_turno' || !t.hora_salida) return true;
     if (desde && t.fecha_inicio < desde) return false;
     if (hasta && t.fecha_inicio > hasta) return false;
     return true;
@@ -881,7 +871,6 @@ function openAgregarHorasModal() {
   document.getElementById("modal-agregar-horas").style.display = "flex";
 }
 
-// GUARDA HORAS MANUALES Y AJUSTA RANGO PARA GARANTIZAR VISIBILIDAD INMEDIATA
 async function guardarHorasManuales() {
   const userId = parseInt(document.getElementById("manual-user-select").value);
   const fechaInicio = document.getElementById("manual-fecha-inicio").value;
@@ -918,7 +907,6 @@ async function guardarHorasManuales() {
   cachedTurnos.unshift(nuevoTurnoLocal);
   guardarTurnosLocales();
 
-  // Ajustar filtros de fecha si la fecha cargada es más antigua para que no quede oculta
   const inputDesdeAdmin = document.getElementById("filtro-desde");
   if (inputDesdeAdmin && inputDesdeAdmin.value > fechaInicio) {
     inputDesdeAdmin.value = fechaInicio;
@@ -942,7 +930,12 @@ async function guardarHorasManuales() {
 
   closeModals();
   loadAdminData();
-  alert("¡Horas cargadas correctamente!");
+  
+  if (currentUser && currentUser.rol !== "admin") {
+    renderTablaTrabajador();
+  }
+
+  alert("¡Horas cargadas correctamente y sincronizadas!");
 }
 
 function abrirResumenPagoModal() {
