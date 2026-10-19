@@ -26,6 +26,17 @@ function getFormattedDate(d = new Date()) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function getShortDateLabel(val) {
+  if (!val) return '';
+  try {
+    const d = typeof val === 'number' ? new Date(val) : new Date(val);
+    const vzla = getVenezuelaDate(d);
+    const mm = String(vzla.getMonth() + 1).padStart(2, '0');
+    const dd = String(vzla.getDate()).padStart(2, '0');
+    return `${dd}/${mm}`;
+  } catch(e) { return ''; }
+}
+
 function getFormattedTime(val) {
   if (!val) return '--:--';
   try {
@@ -56,18 +67,22 @@ function iniciarRelojEnVivo() {
 }
 
 // COPIAR REPORTE AL PORTAPAPELES AL FICHAR
-function copiarReportePortapapeles(nombreTrabajador, accion, fecha, hora, totalHorasStr = "") {
+function copiarReportePortapapeles(nombreTrabajador, accion, fechaEntrada, horaEntrada, fechaSalida = "", horaSalida = "", totalHorasStr = "", esContinuacion = false) {
   let mensaje = "";
+  let etiquetaContinuacion = esContinuacion ? " (Continuación de turno)" : "";
+
   if (accion === "INICIO") {
-    mensaje = `🟢 *INICIO DE TURNO*\n` +
+    mensaje = `🟢 *INICIO DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
-              `📅 *Fecha:* ${fecha}\n` +
-              `⏰ *Hora:* ${hora}`;
+              `📅 *Fecha:* ${fechaEntrada}\n` +
+              `⏰ *Hora Entrada:* ${horaEntrada}`;
   } else {
-    mensaje = `🔴 *FINALIZACIÓN DE TURNO*\n` +
+    let detalleSalidaFecha = (fechaSalida && fechaSalida !== fechaEntrada) ? ` (${fechaSalida})` : '';
+    mensaje = `🔴 *FINALIZACIÓN DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
-              `📅 *Fecha:* ${fecha}\n` +
-              `⏰ *Hora de Salida:* ${hora}\n` +
+              `📅 *Fecha Inicio:* ${fechaEntrada}\n` +
+              `⏰ *Entrada:* ${horaEntrada}\n` +
+              `⏰ *Salida:* ${horaSalida}${detalleSalidaFecha}\n` +
               `⏱️ *Total Trabajado:* ${totalHorasStr}`;
   }
 
@@ -322,6 +337,9 @@ function ejecutarToggleTurno() {
   const fechaStr = getFormattedDate(now);
   const horaStr = getFormattedTime(now);
 
+  const turnosPreviosDia = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fechaStr);
+  const esContinuacion = turnosPreviosDia.length > 0;
+
   if (!currentShift) {
     const nuevoTurno = {
       id: Date.now(),
@@ -351,8 +369,7 @@ function ejecutarToggleTurno() {
       }).catch(e => console.log(e));
     }
 
-    // Copiar reporte al portapapeles
-    copiarReportePortapapeles(currentUser.nombre, "INICIO", fechaStr, horaStr);
+    copiarReportePortapapeles(currentUser.nombre, "INICIO", fechaStr, horaStr, "", "", "", esContinuacion);
 
   } else {
     let entradaMs = typeof currentShift.hora_entrada === 'number' 
@@ -365,6 +382,10 @@ function ejecutarToggleTurno() {
 
     let totalMins = Math.round(diffMs / (1000 * 60));
     let totalHorasStr = diffHrs >= 1 ? `${diffHrs.toFixed(2)} hrs` : `${totalMins} min`;
+
+    const fechaEntradaTurno = currentShift.fecha_inicio;
+    const horaEntradaTurno = getFormattedTime(currentShift.hora_entrada);
+    const fechaSalidaTurno = getFormattedDate(now);
 
     const turnoIdAActualizar = currentShift.id;
     currentShift.hora_salida = salidaMs;
@@ -387,8 +408,8 @@ function ejecutarToggleTurno() {
       }).catch(e => console.log(e));
     }
 
-    // Copiar reporte al portapapeles con total trabajado
-    copiarReportePortapapeles(currentUser.nombre, "FIN", fechaStr, horaStr, totalHorasStr);
+    const esContinuacionSalida = turnosPreviosDia.length > 1;
+    copiarReportePortapapeles(currentUser.nombre, "FIN", fechaEntradaTurno, horaEntradaTurno, fechaSalidaTurno, horaStr, totalHorasStr, esContinuacionSalida);
   }
 }
 
@@ -468,13 +489,26 @@ function renderTablaTrabajador() {
 }
 
 function verDetalleDia(fecha) {
-  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha);
-  document.getElementById("detalle-titulo").innerText = `Detalle de Turnos (${fecha})`;
+  const listaTurnos = cachedTurnos
+    .filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha)
+    .sort((a, b) => {
+      let entA = typeof a.hora_entrada === 'number' ? a.hora_entrada : new Date(a.hora_entrada).getTime();
+      let entB = typeof b.hora_entrada === 'number' ? b.hora_entrada : new Date(b.hora_entrada).getTime();
+      return entA - entB;
+    });
+
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${currentUser.nombre} (${fecha})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
-  listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getFormattedTime(t.hora_entrada) : '-';
-    let sal = t.hora_salida ? getFormattedTime(t.hora_salida) : 'En curso';
+  listaTurnos.forEach((t, idx) => {
+    let entDateStr = getFormattedDate(t.hora_entrada);
+    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
+
+    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
+    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
+
+    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
+    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
     
     let mins = 0;
     let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
@@ -486,8 +520,10 @@ function verDetalleDia(fecha) {
     }
 
     let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
+    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
 
     html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
+            `${tagContinuando}` +
             `<small>Entrada: ${ent}</small><br>` +
             `<small>Salida: ${sal}</small><br>` +
             `Total: <span class="txt-green">${hrsText}</span><br>` +
@@ -857,14 +893,51 @@ function copiarResumenPago() {
 }
 
 function verDetallesAdminGlobal(userId, fecha) {
-  const listaTurnos = cachedTurnos.filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha);
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado (${fecha})`;
+  const userObj = cachedUsers.find(u => String(u.id) === String(userId));
+  const nombreUsuario = userObj ? userObj.nombre : 'Trabajador';
+
+  const listaTurnos = cachedTurnos
+    .filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha)
+    .sort((a, b) => {
+      let entA = typeof a.hora_entrada === 'number' ? a.hora_entrada : new Date(a.hora_entrada).getTime();
+      let entB = typeof b.hora_entrada === 'number' ? b.hora_entrada : new Date(b.hora_entrada).getTime();
+      return entA - entB;
+    });
+
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${fecha})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
-  listaTurnos.forEach(t => {
-    let ent = t.hora_entrada ? getFormattedTime(t.hora_entrada) : '-';
-    let sal = t.hora_salida ? getFormattedTime(t.hora_salida) : 'En curso';
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;"><small>Entrada: ${ent}</small><br><small>Salida: ${sal}</small><br><button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button></div>`;
+
+  listaTurnos.forEach((t, idx) => {
+    let entDateStr = getFormattedDate(t.hora_entrada);
+    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
+
+    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
+    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
+
+    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
+    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
+    
+    let mins = 0;
+    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+    if (entMs && salMs && salMs > entMs) {
+      mins = Math.round((salMs - entMs) / (1000 * 60));
+    } else if (t.horas_totales) {
+      mins = Math.round(t.horas_totales * 60);
+    }
+
+    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
+    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
+
+    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
+            `${tagContinuando}` +
+            `<small>Entrada: ${ent}</small><br>` +
+            `<small>Salida: ${sal}</small><br>` +
+            `Total: <span class="txt-green">${hrsText}</span><br>` +
+            `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button>` +
+            `</div>`;
   });
+
   document.getElementById("detalle-contenido").innerHTML = html;
   document.getElementById("modal-detalles").classList.remove("hidden");
   document.getElementById("modal-detalles").style.display = "flex";
