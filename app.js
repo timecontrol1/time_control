@@ -491,7 +491,7 @@ function renderTablaTrabajador() {
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
       <td class="txt-green">${horasDisplay}</td>
-      <td><button onclick="verDetalleDia('${g.fecha}')" class="btn-action btn-gray">Detalle</button></td>
+      <td><button onclick="verDetallesAdminGlobal(${currentUser.id}, '${g.fecha}')" class="btn-action btn-gray" style="padding:6px 12px; font-size:0.85rem;">Detalles</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -508,60 +508,6 @@ function renderTablaTrabajador() {
     }
   }
   calcularSimuladorCobro();
-}
-
-function verDetalleDia(fecha) {
-  const listaTurnos = cachedTurnos
-    .filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fecha)
-    .sort((a, b) => {
-      let entA = typeof a.hora_entrada === 'number' ? a.hora_entrada : new Date(a.hora_entrada).getTime();
-      let entB = typeof b.hora_entrada === 'number' ? b.hora_entrada : new Date(b.hora_entrada).getTime();
-      return entA - entB;
-    });
-
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${currentUser.nombre} (${formatFechaEsp(fecha)})`;
-  let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
-  
-  listaTurnos.forEach((t, idx) => {
-    let entDateStr = getFormattedDate(t.hora_entrada);
-    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
-
-    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
-    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
-
-    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
-    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
-    
-    let mins = 0;
-    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
-    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
-    if (entMs && salMs && salMs > entMs) {
-      mins = Math.round((salMs - entMs) / (1000 * 60));
-    } else if (t.horas_totales) {
-      mins = Math.round(t.horas_totales * 60);
-    }
-
-    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
-    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
-
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
-            `${tagContinuando}` +
-            `<small>Entrada: ${ent}</small><br>` +
-            `<small>Salida: ${sal}</small><br>` +
-            `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `<div class="flex-row" style="margin-top:8px;">` +
-              `<button onclick="abrirModalEditarTurno(${t.id}, ${currentUser.id}, '${fecha}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
-              `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
-            `</div>` +
-            `</div>`;
-  });
-  
-  document.getElementById("detalle-contenido").innerHTML = html;
-  const modalDetalles = document.getElementById("modal-detalles");
-  if (modalDetalles) { 
-    modalDetalles.classList.remove("hidden"); 
-    modalDetalles.style.display = "flex"; 
-  }
 }
 
 async function actualizarTarifaIndividualTrabajador(nuevaTarifa) {
@@ -745,7 +691,7 @@ function renderHistorialAdmin() {
       <td>${hSal}</td>
       <td>${item.activo ? '<span class="txt-green">🟢 En Turno</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
       <td>
-        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
+        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:6px 12px; font-size:0.85rem;">Detalles</button>
         ${botonesForzar}
       </td>
     `;
@@ -756,6 +702,7 @@ function renderHistorialAdmin() {
 function verDetallesAdminGlobal(userIdTarget, fechaTarget) {
   const userObj = cachedUsers.find(u => String(u.id) === String(userIdTarget));
   const nombreUsuario = userObj ? userObj.nombre : 'Trabajador';
+  const isAdmin = currentUser && currentUser.rol === "admin";
 
   const listaTurnos = cachedTurnos
     .filter(t => String(t.id_usuario) === String(userIdTarget) && t.fecha_inicio === fechaTarget)
@@ -790,15 +737,20 @@ function verDetallesAdminGlobal(userIdTarget, fechaTarget) {
     let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
     let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
 
+    let botonesAdminCard = "";
+    if (isAdmin) {
+      botonesAdminCard = `<div class="flex-row" style="margin-top:8px;">` +
+                           `<button onclick="abrirModalEditarTurno(${t.id}, ${userIdTarget}, '${fechaTarget}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
+                           `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
+                         `</div>`;
+    }
+
     html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
             `${tagContinuando}` +
             `<small>Entrada: ${ent}</small><br>` +
             `<small>Salida: ${sal}</small><br>` +
             `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `<div class="flex-row" style="margin-top:8px;">` +
-              `<button onclick="abrirModalEditarTurno(${t.id}, ${userIdTarget}, '${fechaTarget}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
-              `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
-            `</div>` +
+            `${botonesAdminCard}` +
             `</div>`;
   });
 
@@ -896,7 +848,7 @@ async function guardarEdicionTurno() {
     verDetallesAdminGlobal(userId, fInicio);
   } else {
     renderTablaTrabajador();
-    verDetalleDia(fInicio);
+    verDetallesAdminGlobal(userId, fInicio);
   }
 
   alert("¡Registro actualizado correctamente!");
