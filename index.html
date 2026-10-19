@@ -204,7 +204,7 @@
       border-radius: 12px;
       padding: 24px;
       width: 100%;
-      max-width: 400px;
+      max-width: 420px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
     }
 
@@ -224,6 +224,18 @@
       margin-bottom: 20px;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 10px;
+    }
+
+    .badge-continuacion {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      display: inline-block;
+      margin-bottom: 6px;
     }
   </style>
 </head>
@@ -359,13 +371,15 @@
       </table>
     </div>
 
-    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Historial Global (1 Línea por Día por Trabajador)</h4>
-    <div style="overflow-x: auto; max-height: 250px;">
+    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Historial de Reportes</h4>
+    <div style="overflow-x: auto; max-height: 300px;">
       <table>
         <thead>
           <tr>
             <th>Trabajador</th>
             <th>Fecha</th>
+            <th>Hora Inicio</th>
+            <th>Hora Salida</th>
             <th>Total Horas / Estado</th>
             <th>Acciones</th>
           </tr>
@@ -390,7 +404,7 @@
   <div id="modal-detalles" class="modal-backdrop">
     <div class="modal-content">
       <h3 id="detalle-titulo">Detalle de Turnos</h3>
-      <div id="detalle-contenido" style="max-height: 200px; overflow-y: auto; margin-bottom: 20px;"></div>
+      <div id="detalle-contenido" style="max-height: 250px; overflow-y: auto; margin-bottom: 20px;"></div>
       <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
     </div>
   </div>
