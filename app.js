@@ -26,7 +26,6 @@ function getFormattedDate(d = new Date()) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// DAR FORMATO DD/MM/YYYY PARA PANTALLA Y REPORTES
 function formatFechaEsp(fechaISO) {
   if (!fechaISO) return '';
   const partes = fechaISO.split('-');
@@ -61,6 +60,17 @@ function getFormattedTime(val) {
   } catch(e) { 
     return '--:--'; 
   }
+}
+
+function getTimeStringHHMM(val) {
+  if (!val) return '08:00';
+  try {
+    const d = typeof val === 'number' ? new Date(val) : new Date(val);
+    const vzla = getVenezuelaDate(d);
+    const hh = String(vzla.getHours()).padStart(2, '0');
+    const mm = String(vzla.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  } catch(e) { return '08:00'; }
 }
 
 // RELOJ GLOBAL AUTOMÁTICO
@@ -539,7 +549,10 @@ function verDetalleDia(fecha) {
             `<small>Entrada: ${ent}</small><br>` +
             `<small>Salida: ${sal}</small><br>` +
             `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button>` +
+            `<div class="flex-row" style="margin-top:8px;">` +
+              `<button onclick="abrirModalEditarTurno(${t.id}, ${currentUser.id}, '${fecha}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
+              `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
+            `</div>` +
             `</div>`;
   });
   
@@ -684,7 +697,6 @@ function renderHistorialAdmin() {
     let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
     let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
     
-    // Suma de minutos a la fecha de inicio
     if (entMs && salMs && salMs > entMs) {
       grp.totalMins += (salMs - entMs) / (1000 * 60);
     } else if (t.horas_totales) {
@@ -739,6 +751,155 @@ function renderHistorialAdmin() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+function verDetallesAdminGlobal(userIdTarget, fechaTarget) {
+  const userObj = cachedUsers.find(u => String(u.id) === String(userIdTarget));
+  const nombreUsuario = userObj ? userObj.nombre : 'Trabajador';
+
+  const listaTurnos = cachedTurnos
+    .filter(t => String(t.id_usuario) === String(userIdTarget) && t.fecha_inicio === fechaTarget)
+    .sort((a, b) => {
+      let entA = typeof a.hora_entrada === 'number' ? a.hora_entrada : new Date(a.hora_entrada).getTime();
+      let entB = typeof b.hora_entrada === 'number' ? b.hora_entrada : new Date(b.hora_entrada).getTime();
+      return entA - entB;
+    });
+
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${formatFechaEsp(fechaTarget)})`;
+  let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
+
+  listaTurnos.forEach((t, idx) => {
+    let entDateStr = getFormattedDate(t.hora_entrada);
+    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
+
+    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
+    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
+
+    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
+    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
+    
+    let mins = 0;
+    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+    if (entMs && salMs && salMs > entMs) {
+      mins = Math.round((salMs - entMs) / (1000 * 60));
+    } else if (t.horas_totales) {
+      mins = Math.round(t.horas_totales * 60);
+    }
+
+    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
+    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
+
+    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
+            `${tagContinuando}` +
+            `<small>Entrada: ${ent}</small><br>` +
+            `<small>Salida: ${sal}</small><br>` +
+            `Total: <span class="txt-green">${hrsText}</span><br>` +
+            `<div class="flex-row" style="margin-top:8px;">` +
+              `<button onclick="abrirModalEditarTurno(${t.id}, ${userIdTarget}, '${fechaTarget}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
+              `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
+            `</div>` +
+            `</div>`;
+  });
+
+  document.getElementById("detalle-contenido").innerHTML = html;
+  const modalDetalles = document.getElementById("modal-detalles");
+  if (modalDetalles) {
+    modalDetalles.classList.remove("hidden");
+    modalDetalles.style.display = "flex";
+  }
+}
+
+// FUNCIONALIDAD DE EDICIÓN DE TURNO DE ASISTENCIA
+function abrirModalEditarTurno(idTurno, userId, fechaRef) {
+  let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
+  if (!t) return;
+
+  document.getElementById("edit-turno-id").value = t.id;
+  document.getElementById("edit-turno-userid").value = userId;
+  document.getElementById("edit-turno-fecharef").value = fechaRef;
+
+  const fEnt = t.hora_entrada ? getFormattedDate(t.hora_entrada) : t.fecha_inicio;
+  const fSal = t.hora_salida ? getFormattedDate(t.hora_salida) : fEnt;
+
+  document.getElementById("edit-turno-fechainicio").value = fEnt;
+  document.getElementById("edit-turno-fechafin").value = fSal;
+  document.getElementById("edit-turno-horaentrada").value = getTimeStringHHMM(t.hora_entrada);
+  document.getElementById("edit-turno-horasalida").value = getTimeStringHHMM(t.hora_salida || t.hora_entrada);
+
+  const modalEdit = document.getElementById("modal-editar-turno");
+  if (modalEdit) {
+    modalEdit.classList.remove("hidden");
+    modalEdit.style.display = "flex";
+  }
+}
+
+function cerrarModalEditarTurno() {
+  const modalEdit = document.getElementById("modal-editar-turno");
+  if (modalEdit) {
+    modalEdit.classList.add("hidden");
+    modalEdit.style.display = "none";
+  }
+}
+
+async function guardarEdicionTurno() {
+  const idTurno = document.getElementById("edit-turno-id").value;
+  const userId = document.getElementById("edit-turno-userid").value;
+  const fechaRef = document.getElementById("edit-turno-fecharef").value;
+
+  const fInicio = document.getElementById("edit-turno-fechainicio").value;
+  const fFin = document.getElementById("edit-turno-fechafin").value || fInicio;
+  const hEntrada = document.getElementById("edit-turno-horaentrada").value;
+  const hSalida = document.getElementById("edit-turno-horasalida").value;
+
+  if (!fInicio || !hEntrada || !hSalida) {
+    alert("Completa la fecha y las horas.");
+    return;
+  }
+
+  let tEntrada = new Date(`${fInicio}T${hEntrada}:00`).getTime();
+  let tSalida = new Date(`${fFin}T${hSalida}:00`).getTime();
+
+  if (tSalida <= tEntrada) {
+    alert("La salida debe ser posterior a la fecha y hora de entrada.");
+    return;
+  }
+
+  let diffHrs = Math.max(0, (tSalida - tEntrada) / (1000 * 60 * 60));
+
+  let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
+  if (t) {
+    t.fecha_inicio = fInicio;
+    t.hora_entrada = tEntrada;
+    t.hora_salida = tSalida;
+    t.horas_totales = parseFloat(diffHrs.toFixed(4));
+    t.estado = "completado";
+    guardarTurnosLocales();
+  }
+
+  if (supabaseClient) {
+    try {
+      await supabaseClient.from("registros_turnos").update({
+        fecha_inicio: fInicio,
+        hora_entrada: tEntrada,
+        hora_salida: tSalida,
+        horas_totales: parseFloat(diffHrs.toFixed(4)),
+        estado: "completado"
+      }).eq("id", idTurno);
+    } catch (e) {}
+  }
+
+  cerrarModalEditarTurno();
+  
+  if (currentUser && currentUser.rol === "admin") {
+    await loadAdminData();
+    verDetallesAdminGlobal(userId, fInicio);
+  } else {
+    renderTablaTrabajador();
+    verDetalleDia(fInicio);
+  }
+
+  alert("¡Registro actualizado correctamente!");
 }
 
 function togglePinVisibility(id, btnId) {
@@ -939,60 +1100,6 @@ function copiarResumenPago() {
   navigator.clipboard.writeText(textoFinal).then(() => alert("¡Reporte copiado!")).catch(err => alert("Error al copiar: " + err));
 }
 
-function verDetallesAdminGlobal(userId, fecha) {
-  const userObj = cachedUsers.find(u => String(u.id) === String(userId));
-  const nombreUsuario = userObj ? userObj.nombre : 'Trabajador';
-
-  const listaTurnos = cachedTurnos
-    .filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha)
-    .sort((a, b) => {
-      let entA = typeof a.hora_entrada === 'number' ? a.hora_entrada : new Date(a.hora_entrada).getTime();
-      let entB = typeof b.hora_entrada === 'number' ? b.hora_entrada : new Date(b.hora_entrada).getTime();
-      return entA - entB;
-    });
-
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${formatFechaEsp(fecha)})`;
-  let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
-
-  listaTurnos.forEach((t, idx) => {
-    let entDateStr = getFormattedDate(t.hora_entrada);
-    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
-
-    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
-    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
-
-    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
-    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
-    
-    let mins = 0;
-    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
-    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
-    if (entMs && salMs && salMs > entMs) {
-      mins = Math.round((salMs - entMs) / (1000 * 60));
-    } else if (t.horas_totales) {
-      mins = Math.round(t.horas_totales * 60);
-    }
-
-    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
-    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
-
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
-            `${tagContinuando}` +
-            `<small>Entrada: ${ent}</small><br>` +
-            `<small>Salida: ${sal}</small><br>` +
-            `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:2px 6px; font-size:0.75rem; margin-top:6px;">Eliminar</button>` +
-            `</div>`;
-  });
-
-  document.getElementById("detalle-contenido").innerHTML = html;
-  const modalDetalles = document.getElementById("modal-detalles");
-  if (modalDetalles) {
-    modalDetalles.classList.remove("hidden");
-    modalDetalles.style.display = "flex";
-  }
-}
-
 async function borrarTurno(id) {
   if (confirm("¿Eliminar este registro de turno?")) {
     cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
@@ -1001,7 +1108,11 @@ async function borrarTurno(id) {
       try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e) {}
     }
     closeModals();
-    await loadAdminData();
+    if (currentUser && currentUser.rol === "admin") {
+      await loadAdminData();
+    } else {
+      renderTablaTrabajador();
+    }
   }
 }
 
