@@ -1,1 +1,512 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control de turnos y nómina</title><link rel="stylesheet" href="style.css"></head><body><main><header><h1>🟢 Control de turnos</h1><span id="clock"></span></header><p id="notice" role="status"></p><section id="loginPanel" class="card"><h2>Iniciar sesión</h2><form id="loginForm"><label>Usuario<input id="username" autocomplete="username" required></label><label>PIN<input id="pin" type="password" autocomplete="current-password" required></label><button>Ingresar</button></form></section><section id="appPanel" hidden><div class="card flex"><h2 id="welcome"></h2><button id="logout" class="secondary">Cerrar sesión</button></div><section id="workerPanel" class="card"><h2>Mi turno</h2><p id="shiftStatus">Consultando...</p><button id="shiftButton">Iniciar turno</button><h3>Mis registros</h3><div class="filters"><label>Desde<input type="date" id="workerFrom"></label><label>Hasta<input type="date" id="workerTo"></label><button id="workerRefresh" class="secondary">Actualizar</button></div><div class="scroll"><table><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr></thead><tbody id="workerRows"></tbody></table></div><p id="workerTotal"></p></section><section id="adminPanel" hidden><div class="card"><h2>Administración y nómina</h2><div class="filters"><label>Desde<input type="date" id="from"></label><label>Hasta<input type="date" id="to"></label><button id="refresh" class="secondary">Actualizar</button></div><div class="actions"><button id="addUser">+ Trabajador</button><button id="addManual">+ Horas manuales</button><button id="addBatch">+ Carga masiva</button><button id="globalRate">Tarifa global</button><button id="payroll">Calcular nómina</button><button id="savePayroll">Guardar reporte de pago</button></div></div><div class="card"><h2>Trabajadores y pagos</h2><div class="scroll"><table><thead><tr><th>Nombre</th><th>Tipo</th><th>Tarifa</th><th>Cargo</th><th>Horas</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h2>Historial de asistencias</h2><div class="scroll"><table><thead><tr><th>Trabajador</th><th>Fecha</th><th>Estado / horas</th><th>Acción</th></tr></thead><tbody id="historyRows"></tbody></table></div></div><div class="card"><h2>Reportes guardados</h2><div id="reports"></div></div></section></section><dialog id="modal"><form id="modalForm"><h2 id="modalTitle"></h2><div id="modalFields"></div><div class="actions"><button type="button" id="cancel" class="secondary">Cancelar</button><button type="submit">Guardar</button></div></form></dialog></main><script src="app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Control de Turnos & Nómina</title>
+  <!-- Supabase Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg-main: #030712;
+      --bg-card: #0f172a;
+      --bg-input: #1e293b;
+      --border-color: #334155;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 15px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    #matrix-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      opacity: 0.15;
+    }
+
+    /* RELOJ GLOBAL PEQUEÑO Y VISIBLE */
+    .reloj-global-container {
+      width: 100%;
+      max-width: 480px;
+      margin-bottom: 10px;
+      z-index: 10;
+    }
+    .container-admin ~ .reloj-global-container, body:has(#sec-admin:not(.hidden)) .reloj-global-container {
+      max-width: 900px;
+    }
+
+    #reloj-venezuela {
+      background: #1e293b;
+      color: #10b981;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      text-align: center;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      z-index: 1;
+    }
+
+    .container-admin {
+      max-width: 900px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    h2, h3 {
+      margin-bottom: 16px;
+      color: var(--text-main);
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent-green);
+    }
+
+    button, .btn-action {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--accent-green);
+      color: #022c22;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s, background-color 0.2s;
+      text-align: center;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .btn-red {
+      background-color: var(--accent-red) !important;
+      color: #ffffff !important;
+    }
+
+    .btn-gray {
+      background-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+      width: auto;
+    }
+
+    .txt-green {
+      color: var(--accent-green);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(3, 7, 18, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .flex-row button {
+      flex: 1;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="matrix-canvas"></canvas>
+
+  <!-- RELOJ GLOBAL PEQUEÑO -->
+  <div class="reloj-global-container">
+    <div id="reloj-venezuela">🇻🇪 Sincronizando hora...</div>
+  </div>
+
+  <!-- SECCIÓN DE LOGIN -->
+  <div id="sec-login" class="container">
+    <h2>Control de Asistencia</h2>
+    <div class="form-group">
+      <label for="login-usuario">Usuario o Nombre</label>
+      <input type="text" id="login-usuario" placeholder="Ej. ronald o administrador">
+    </div>
+    <div class="form-group">
+      <label for="login-pin">PIN de Acceso</label>
+      <input type="password" id="login-pin" placeholder="••••" maxlength="6">
+    </div>
+    <button onclick="login()">Ingresar al Sistema</button>
+  </div>
+
+  <!-- SECCIÓN DE TRABAJADOR -->
+  <div id="sec-trabajador" class="container hidden">
+    <div class="header-bar">
+      <div>
+        <h3 id="worker-title" style="margin-bottom:0; text-align:left;">Trabajador</h3>
+        <small style="color:var(--text-muted)">Panel de Control</small>
+      </div>
+      <button onclick="logout()" class="btn-action btn-gray" style="width: auto; padding: 6px 12px; font-size: 0.85rem;">Salir</button>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+      <button id="btn-fichar" onclick="confirmarToggleTurno()" style="font-size: 1.1rem; padding: 16px;">▶ Iniciar Turno</button>
+    </div>
+
+    <div style="background:var(--bg-input); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+      <h4 style="margin-bottom: 12px; font-size: 0.95rem; color:var(--text-muted);">💰 Simulador de Cobro & Historial</h4>
+      <div class="flex-row" style="margin-bottom: 10px;">
+        <div style="flex:1;">
+          <label>Desde:</label>
+          <input type="date" id="w-filtro-desde" onchange="renderTablaTrabajador()">
+        </div>
+        <div style="flex:1;">
+          <label>Hasta:</label>
+          <input type="date" id="w-filtro-hasta" onchange="renderTablaTrabajador()">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 10px;">
+        <label>Tu Tarifa por Hora ($):</label>
+        <input type="number" id="w-tarifa-input" value="1.00" step="0.1" oninput="actualizarTarifaIndividualTrabajador(this.value)">
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); padding:10px; border-radius:6px;">
+        <div>
+          <small>Total Horas Periodo:</small>
+          <div id="w-total-periodo" class="txt-green" style="font-weight:bold; font-size:1.1rem;">0.00 hrs</div>
+        </div>
+        <div style="text-align:right;">
+          <small id="w-detalle-horas-estimadas">Suma de 0.00 hrs</small>
+          <div id="w-total-estimado" class="txt-green" style="font-weight:bold; font-size:1.2rem;">$0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <h4 style="font-size: 0.95rem; margin-bottom: 8px; color:var(--text-muted);">Resumen de Turnos</h4>
+    <div style="max-height: 220px; overflow-y: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Entrada</th>
+            <th>Salida</th>
+            <th>Total</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-resumen-trabajador"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN DE ADMINISTRADOR -->
+  <div id="sec-admin" class="container container-admin hidden">
+    <div class="header-bar">
+      <div>
+        <h3>Panel de Administración</h3>
+        <small style="color:var(--text-muted)">Control General de Nómina y Turnos</small>
+      </div>
+      <div class="flex-row" style="gap:5px;">
+        <button onclick="openConfigTarifasModal()" class="btn-action btn-gray" style="width: auto; padding: 6px 10px; font-size: 0.8rem;">⚙️ Tarifa Global</button>
+        <button onclick="openConfigPinModal()" class="btn-action btn-gray" style="width: auto; padding: 6px 10px; font-size: 0.8rem;">PIN</button>
+        <button onclick="logout()" class="btn-action btn-red" style="width: auto; padding: 6px 10px; font-size: 0.8rem;">Salir</button>
+      </div>
+    </div>
+
+    <div class="flex-row" style="margin-bottom: 15px;">
+      <div style="flex:1;">
+        <label>Filtrar Desde:</label>
+        <input type="date" id="filtro-desde" onchange="loadAdminData()">
+      </div>
+      <div style="flex:1;">
+        <label>Filtrar Hasta:</label>
+        <input type="date" id="filtro-hasta" onchange="loadAdminData()">
+      </div>
+    </div>
+
+    <div class="flex-row" style="margin-bottom: 20px;">
+      <button onclick="openNuevoUsuarioModal()" class="btn-action" style="background:#3b82f6; color:#fff;">+ Nuevo Trabajador</button>
+      <button onclick="openAgregarHorasModal()" class="btn-action btn-gray">+ Cargar Horas Manual</button>
+      <button onclick="abrirResumenPagoModal()" class="btn-action" style="background:#10b981; color:#022c22;">📊 Resumen de Pago</button>
+    </div>
+
+    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Listado de Trabajadores & Nómina</h4>
+    <div style="overflow-x: auto; margin-bottom: 25px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>PIN</th>
+            <th>Tipo</th>
+            <th>Tarifa Ind. ($)</th>
+            <th>Cargo</th>
+            <th>Horas Periodo</th>
+            <th>Total a Pagar</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-usuarios"></tbody>
+      </table>
+    </div>
+
+    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Historial Global (1 Línea por Día por Trabajador)</h4>
+    <div style="overflow-x: auto; max-height: 250px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Trabajador</th>
+            <th>Fecha</th>
+            <th>Total Horas / Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-asistencias"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODALES -->
+  <div id="modal-confirm" class="modal-backdrop">
+    <div class="modal-content" style="text-align: center;">
+      <h3 id="confirm-title">¿Iniciar Turno?</h3>
+      <p id="confirm-text" style="color:var(--text-muted); margin-bottom: 20px; font-size: 0.95rem;"></p>
+      <div class="flex-row">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="ejecutarToggleTurno()" class="btn-action">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-detalles" class="modal-backdrop">
+    <div class="modal-content">
+      <h3 id="detalle-titulo">Detalle de Turnos</h3>
+      <div id="detalle-contenido" style="max-height: 200px; overflow-y: auto; margin-bottom: 20px;"></div>
+      <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
+    </div>
+  </div>
+
+  <div id="modal-usuario" class="modal-backdrop">
+    <div class="modal-content">
+      <h3 id="modal-user-title">Trabajador</h3>
+      <input type="hidden" id="edit-user-id">
+      <div class="form-group">
+        <label>Nombre Completo:</label>
+        <input type="text" id="edit-user-nombre" placeholder="Ej. Ronald">
+      </div>
+      <div class="form-group">
+        <label>PIN de Acceso (Numérico):</label>
+        <input type="text" id="edit-user-pin" placeholder="1234">
+      </div>
+      <div class="form-group">
+        <label>Tipo de Pago:</label>
+        <select id="edit-user-tipo">
+          <option value="Horas">Por Horas</option>
+          <option value="Fijo">Sueldo Fijo Semanal</option>
+          <option value="Gasolina">Planta (Gasolina)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tarifa Individual ($):</label>
+        <input type="number" id="edit-user-tarifa" value="1.0" step="0.1">
+      </div>
+      <div class="form-group">
+        <label>Cargo / Rol:</label>
+        <input type="text" id="edit-user-cargo" value="Operaciones">
+      </div>
+      <input type="hidden" id="edit-user-rol" value="trabajador">
+      <div class="flex-row" style="margin-top: 15px;">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarUsuario()" class="btn-action">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-agregar-horas" class="modal-backdrop">
+    <div class="modal-content">
+      <h3>Cargar Horas Manuales</h3>
+      <div class="form-group">
+        <label>Trabajador:</label>
+        <select id="manual-user-select"></select>
+      </div>
+      <div class="form-group">
+        <label>Fecha:</label>
+        <input type="date" id="manual-fecha">
+      </div>
+      <div class="form-group">
+        <label>Hora Entrada:</label>
+        <input type="time" id="manual-entrada" value="08:00">
+      </div>
+      <div class="form-group">
+        <label>Hora Salida:</label>
+        <input type="time" id="manual-salida" value="17:00">
+      </div>
+      <div class="flex-row" style="margin-top: 15px;">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarHorasManuales()" class="btn-action">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-resumen-pago" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 480px;">
+      <h3>Reporte de Nómina</h3>
+      <p id="resumen-rango-fechas" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px; text-align:center;"></p>
+      <div id="resumen-pago-contenido" style="max-height: 250px; overflow-y: auto; background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px;"></div>
+      <div class="flex-row">
+        <button onclick="copiarResumenPago()" class="btn-action" style="background:#3b82f6; color:#fff;">📋 Copiar Reporte</button>
+        <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIG TARIFA GLOBAL -->
+  <div id="modal-config-tarifas" class="modal-backdrop">
+    <div class="modal-content">
+      <h3>Aplicar Tarifa Global</h3>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Esto actualizará la tarifa de todos los trabajadores por hora.</p>
+      <div class="form-group">
+        <label>Nueva Tarifa Global ($):</label>
+        <input type="number" id="global-tarifa-input" value="1.00" step="0.1">
+      </div>
+      <div class="flex-row" style="margin-top: 15px;">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="aplicarTarifaGlobal()" class="btn-action">Aplicar a Todos</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-config-pin" class="modal-backdrop">
+    <div class="modal-content">
+      <h3>Cambiar PIN de Admin</h3>
+      <div class="form-group">
+        <label>PIN Actual:</label>
+        <input type="password" id="pin-actual-input" placeholder="••••">
+      </div>
+      <div class="form-group">
+        <label>Nuevo PIN:</label>
+        <input type="password" id="pin-nuevo-input" placeholder="••••">
+      </div>
+      <div class="form-group">
+        <label>Confirmar Nuevo PIN:</label>
+        <input type="password" id="pin-confirmar-input" placeholder="••••">
+      </div>
+      <div class="flex-row" style="margin-top: 15px;">
+        <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarNuevoPinSeguro()" class="btn-action">Actualizar PIN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Archivo JavaScript Principal -->
+  <script src="app.js"></script>
+</body>
+</html>
