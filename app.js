@@ -35,7 +35,7 @@ function formatFechaEsp(fechaISO) {
 }
 
 function getFormattedDateTime(val) {
-  if (!val) return '--/--/---- --:--';
+  if (!val) return '--:-- --';
   try {
     const d = typeof val === 'number' ? new Date(val) : new Date(val);
     const vzla = getVenezuelaDate(d);
@@ -149,7 +149,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   syncDataFromSupabase();
   configurarRealtimeSupabase();
-  setInterval(syncDataFromSupabase, 2000);
+  setInterval(syncDataFromSupabase, 3000);
 
   try {
     const savedUserId = localStorage.getItem("active_user_id");
@@ -176,12 +176,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// CANAL REALTIME MULTIDISPOSITIVO ROBUSTO
 function configurarRealtimeSupabase() {
   if (!supabaseClient) return;
   try {
     supabaseClient
-      .channel('cambios-turnos-global')
+      .channel('cambios-turnos-global-v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_turnos' }, payload => {
         syncDataFromSupabase();
       })
@@ -263,6 +262,10 @@ async function syncDataFromSupabase() {
         }
       });
       cachedUsers = arrUnicos;
+      if (currentUser) {
+        let updatedCurr = cachedUsers.find(u => String(u.id) === String(currentUser.id) || (u.usuario || "").toLowerCase() === (currentUser.usuario || "").toLowerCase());
+        if (updatedCurr) currentUser = updatedCurr;
+      }
     }
 
     const { data: turnosRemote, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("hora_entrada", { ascending: false });
@@ -279,14 +282,26 @@ async function syncDataFromSupabase() {
         else loadWorkerData();
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("Error sincronizando con Supabase:", e);
+  }
 }
 
-function login() {
+async function login() {
   const uInput = (document.getElementById("login-usuario").value || "").trim().toLowerCase();
   const pInput = (document.getElementById("login-pin").value || "").trim();
 
   if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
+
+  // Sincronizar antes de validar para asegurar tener los usuarios y IDs más recientes de Supabase
+  if (supabaseClient) {
+    try {
+      const { data: users } = await supabaseClient.from("usuarios").select("*");
+      if (users && users.length > 0) {
+        cachedUsers = users;
+      }
+    } catch(e) {}
+  }
 
   let user = cachedUsers.find(u => 
     (u.usuario || "").toLowerCase() === uInput || 
@@ -295,7 +310,7 @@ function login() {
   );
 
   if (!user && (uInput === "admin" || uInput === "administrador" || uInput === "angel" || uInput === "ángel") && pInput === "1234") {
-    user = cachedUsers.find(u => u.rol === "admin");
+    user = cachedUsers.find(u => u.rol === "admin" || u.usuario === "administrador");
   }
 
   if (!user) { alert("El usuario '" + uInput + "' no existe en el sistema."); return; }
@@ -305,7 +320,7 @@ function login() {
     localStorage.setItem("active_user_id", user.id);
     document.getElementById("sec-login").classList.add("hidden");
 
-    if (user.rol === "admin") {
+    if (user.rol === "admin" || user.usuario === "administrador") {
       document.getElementById("sec-admin").classList.remove("hidden");
       initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
       loadAdminData();
@@ -316,6 +331,7 @@ function login() {
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
       loadWorkerData();
     }
+    syncDataFromSupabase();
   } else {
     alert("PIN incorrecto.");
   }
@@ -401,15 +417,21 @@ async function ejecutarToggleTurno() {
           estado: "en_turno",
           origen: "sistema"
         }]).select();
-        if (!error && data && data.length > 0) {
+
+        if (error) {
+          alert("Error al guardar en Supabase: " + error.message);
+        } else if (data && data.length > 0) {
           cachedTurnos = cachedTurnos.filter(x => x.id !== nuevoLocal.id);
           cachedTurnos.unshift(data[0]);
           currentShift = data[0];
           guardarTurnosLocales();
         }
-      } catch(e){}
+      } catch(err) {
+        alert("Excepción al conectar con Supabase: " + err.message);
+      }
     }
 
+    syncDataFromSupabase();
     copiarReportePortapapeles(currentUser.nombre, "INICIO", fechaStr, horaMs, "", "", "", esContinuacion);
 
   } else {
@@ -441,20 +463,28 @@ async function ejecutarToggleTurno() {
 
     if (supabaseClient) {
       try {
-        await supabaseClient.from("registros_turnos").update({
+        const { error } = await supabaseClient.from("registros_turnos").update({
           hora_salida: salidaMs,
           horas_totales: parseFloat(diffHrs.toFixed(4)),
           estado: "completado"
         }).eq("id", turnoIdAActualizar);
-      } catch(e){}
+
+        if (error) {
+          alert("Error al finalizar turno en Supabase: " + error.message);
+        }
+      } catch(err) {
+        alert("Excepción al finalizar turno: " + err.message);
+      }
     }
 
+    syncDataFromSupabase();
     const esContinuacionSalida = turnosPreviosDia.length > 1;
     copiarReportePortapapeles(currentUser.nombre, "FIN", fechaEntradaTurno, horaEntradaMs, fechaSalidaTurno, salidaMs, totalHorasStr, esContinuacionSalida);
   }
 }
 
 function renderTablaTrabajador() {
+  if (!currentUser) return;
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
   const tbody = document.getElementById("tabla-resumen-trabajador");
@@ -561,6 +591,11 @@ function renderTablaUsuariosAdmin() {
       let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
       if (entMs && salMs && salMs > entMs) {
         totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.estado === 'en_turno' || !t.hora_salida) {
+        let nowMs = Date.now();
+        if (nowMs > entMs) {
+          totalMinsUser += (nowMs - entMs) / (1000 * 60);
+        }
       } else if (t.horas_totales) {
         totalMinsUser += parseFloat(t.horas_totales) * 60;
       }
@@ -635,12 +670,14 @@ function renderHistorialAdmin() {
     let mins = 0;
     if (entMs && salMs && salMs > entMs) {
       mins = Math.round((salMs - entMs) / (1000 * 60));
+    } else if (t.estado === 'en_turno' || !t.hora_salida) {
+      mins = Math.round((Date.now() - entMs) / (1000 * 60));
     } else if (t.horas_totales) {
       mins = Math.round(t.horas_totales * 60);
     }
 
     let horasDisp = (t.estado === 'en_turno' || !t.hora_salida) 
-      ? '<span class="txt-green">Activo</span>' 
+      ? '<span class="txt-green">En Línea (Activo)</span>' 
       : (mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`);
 
     let botonesForzar = (t.estado === 'en_turno' || !t.hora_salida) 
@@ -736,12 +773,7 @@ async function guardarEdicionTurno() {
   }
 
   cerrarModalEditarTurno();
-  if (currentUser && currentUser.rol === "admin") {
-    loadAdminData();
-  } else {
-    renderTablaTrabajador();
-  }
-
+  syncDataFromSupabase();
   alert("¡Registro de turno actualizado correctamente!");
 }
 
@@ -756,11 +788,7 @@ async function borrarTurnoUnico(idTurno) {
       } catch (e) {}
     }
     
-    if (currentUser && currentUser.rol === "admin") {
-      loadAdminData();
-    } else {
-      renderTablaTrabajador();
-    }
+    syncDataFromSupabase();
   }
 }
 
@@ -785,7 +813,7 @@ async function forzarSalida(idTurno) {
         }).eq("id", idTurno); 
       } catch (e) {}
     }
-    loadAdminData();
+    syncDataFromSupabase();
     alert("¡Salida forzada con éxito!");
   }
 }
@@ -851,7 +879,7 @@ async function guardarUsuario() {
     else await supabaseClient.from("usuarios").insert([payload]);
   }
   closeModals();
-  loadAdminData();
+  syncDataFromSupabase();
   alert("¡Trabajador guardado con éxito!");
 }
 
@@ -865,7 +893,7 @@ async function borrarUsuario(id) {
     if (supabaseClient) {
       await supabaseClient.from("usuarios").delete().eq("id", id);
     }
-    loadAdminData();
+    syncDataFromSupabase();
   }
 }
 
@@ -940,12 +968,7 @@ async function guardarHorasManuales() {
   }
 
   closeModals();
-  loadAdminData();
-  
-  if (currentUser && currentUser.rol !== "admin") {
-    renderTablaTrabajador();
-  }
-
+  syncDataFromSupabase();
   alert("¡Horas cargadas correctamente y sincronizadas!");
 }
 
@@ -985,6 +1008,9 @@ function abrirResumenPagoModal() {
       let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
       if (entMs && salMs && salMs > entMs) {
         totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.estado === 'en_turno' || !t.hora_salida) {
+        let nowMs = Date.now();
+        if (nowMs > entMs) totalMinsUser += (nowMs - entMs) / (1000 * 60);
       } else if (t.horas_totales) {
         totalMinsUser += parseFloat(t.horas_totales) * 60;
       }
@@ -1042,6 +1068,9 @@ function copiarResumenPago() {
       let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
       if (entMs && salMs && salMs > entMs) {
         totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.estado === 'en_turno' || !t.hora_salida) {
+        let nowMs = Date.now();
+        if (nowMs > entMs) totalMinsUser += (nowMs - entMs) / (1000 * 60);
       } else if (t.horas_totales) {
         totalMinsUser += parseFloat(t.horas_totales) * 60;
       }
@@ -1082,7 +1111,7 @@ async function aplicarTarifaGlobal() {
     } catch (e) {}
   }
   closeModals();
-  loadAdminData();
+  syncDataFromSupabase();
   alert("¡Tarifa global aplicada con éxito a todos los trabajadores por hora!");
 }
 
