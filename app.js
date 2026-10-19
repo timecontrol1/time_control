@@ -144,9 +144,8 @@ window.addEventListener('DOMContentLoaded', () => {
   cargarTurnosLocales();
   iniciarRelojEnVivo();
 
-  // Sincronización continua de Supabase para ver turnos de otras PC de inmediato
   syncDataFromSupabase();
-  setInterval(syncDataFromSupabase, 4000); // Refresca cada 4 segundos automáticamente
+  setInterval(syncDataFromSupabase, 4000);
 
   try {
     const savedUserId = localStorage.getItem("active_user_id");
@@ -229,7 +228,7 @@ async function syncDataFromSupabase() {
     const { data: users, error: errU } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
     if (!errU && users && users.length > 0) cachedUsers = users;
 
-    const { data: turnos, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("id", { ascending: false });
+    const { data: turnos, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("hora_entrada", { ascending: false });
     if (!errT && turnos) {
       cachedTurnos = turnos;
       guardarTurnosLocales();
@@ -407,6 +406,7 @@ async function ejecutarToggleTurno() {
   }
 }
 
+// RENDER TRABAJADOR: ORDENADO ESTRICTAMENTE DESCENDENTE (ACTUALES ARRIBA, VIEJOS ABAJO)
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
@@ -556,7 +556,7 @@ async function actualizarTarifaUsuarioAdmin(userId, nuevaTarifa) {
   }
 }
 
-// RENDER HISTORIAL DE REPORTES: UNA LÍNEA POR CADA TURNO INDEPENDIENTE (COMO TU IMAGEN DE REFERENCIA)
+// RENDER HISTORIAL DE REPORTES: ORDENADO ESTRICTAMENTE DESCENDENTE (FECHAS ACTUALES ARRIBA, VIEJAS ABAJO)
 function renderHistorialAdmin() {
   const desde = document.getElementById("filtro-desde") ? document.getElementById("filtro-desde").value : "";
   const hasta = document.getElementById("filtro-hasta") ? document.getElementById("filtro-hasta").value : "";
@@ -874,7 +874,7 @@ async function guardarHorasManuales() {
   alert("¡Horas cargadas correctamente!");
 }
 
-// REPORTE DE NÓMINA (CON DESGLOSE EXACTO)
+// REPORTE DE NÓMINA EN CUADRO / TABLA ESTRUCTURADA
 function abrirResumenPagoModal() {
   const desde = document.getElementById("filtro-desde").value;
   const hasta = document.getElementById("filtro-hasta").value;
@@ -886,7 +886,21 @@ function abrirResumenPagoModal() {
   const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
   
   document.getElementById("resumen-rango-fechas").innerText = `Período del ${formatFechaEsp(desde)} al ${formatFechaEsp(hasta)}`;
-  let html = `<div style="font-family: monospace; font-size: 0.9rem; line-height: 1.8;">`;
+  
+  let html = `
+    <table style="width: 100%; margin-top: 0; font-size: 0.85rem;">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--border-color);">
+          <th style="padding: 8px 4px;">Nombre</th>
+          <th style="padding: 8px 4px;">Tipo</th>
+          <th style="padding: 8px 4px;">Horas</th>
+          <th style="padding: 8px 4px;">Tarifa ($)</th>
+          <th style="padding: 8px 4px; text-align: right;">Monto ($)</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
   let granTotal = 0;
 
   cachedUsers.forEach(u => {
@@ -907,31 +921,70 @@ function abrirResumenPagoModal() {
     let tipoPago = (u.tipo_pago || "Horas").trim();
     let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
 
-    let detalleLinea = "";
-    if (tipoPago === "Fijo") {
-      detalleLinea = `Sueldo Fijo ($${tarifaVal.toFixed(2)}/sem)`;
-    } else if (tipoPago === "Gasolina") {
-      detalleLinea = `${totalHoras.toFixed(2)} hrs x $0.50/gal`;
-    } else {
-      detalleLinea = `${totalHoras.toFixed(2)} hrs x $${tarifaVal.toFixed(2)}/hr`;
-    }
+    let horasStr = tipoPago === "Fijo" ? "-" : `${totalHoras.toFixed(2)} hrs`;
+    let tarifaStr = tipoPago === "Fijo" ? `$${tarifaVal.toFixed(2)}/sem` : `$${tarifaVal.toFixed(2)}`;
 
-    html += `<div style="padding:6px 0; border-bottom:1px solid #334155; display:flex; justify-content:space-between;">` +
-            `<span><strong>${u.nombre}</strong> (${detalleLinea}):</span> ` +
-            `<span class="txt-green" style="font-weight:bold;">$${totalPagar.toFixed(2)}</span>` +
-            `</div>`;
+    html += `
+      <tr style="border-bottom: 1px solid var(--border-color);">
+        <td style="padding: 8px 4px;"><strong>${u.nombre}</strong></td>
+        <td style="padding: 8px 4px; color: var(--text-muted);">${tipoPago}</td>
+        <td style="padding: 8px 4px;" class="txt-green">${horasStr}</td>
+        <td style="padding: 8px 4px;">${tarifaStr}</td>
+        <td style="padding: 8px 4px; text-align: right;" class="txt-green"><strong>$${totalPagar.toFixed(2)}</strong></td>
+      </tr>
+    `;
     granTotal += totalPagar;
   });
 
-  html += `</div><div style="margin-top:15px; padding-top:10px; border-top:2px solid #10b981; text-align:right; font-size:1.1rem; font-weight:bold;">Total a Pagar: <span class="txt-green">$${granTotal.toFixed(2)}</span></div>`;
+  html += `
+      </tbody>
+    </table>
+    <div style="margin-top:15px; padding-top:10px; border-top:2px solid #10b981; text-align:right; font-size:1.1rem; font-weight:bold;">
+      Total a Pagar: <span class="txt-green">$${granTotal.toFixed(2)}</span>
+    </div>
+  `;
+
   document.getElementById("resumen-pago-contenido").innerHTML = html;
   document.getElementById("modal-resumen-pago").classList.remove("hidden");
   document.getElementById("modal-resumen-pago").style.display = "flex";
 }
 
 function copiarResumenPago() {
-  const textoFinal = `📊 REPORTE DE NÓMINA\n` + document.getElementById("resumen-pago-contenido").innerText;
-  navigator.clipboard.writeText(textoFinal).then(() => alert("¡Reporte copiado!")).catch(err => alert("Error al copiar: " + err));
+  const desde = document.getElementById("filtro-desde").value;
+  const hasta = document.getElementById("filtro-hasta").value;
+  let d1 = new Date(desde);
+  let d2 = new Date(hasta);
+  let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
+  const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
+
+  let textoCopy = `📊 *REPORTE DE NÓMINA*\n📅 Período: ${formatFechaEsp(desde)} al ${formatFechaEsp(hasta)}\n\n`;
+  let granTotal = 0;
+
+  cachedUsers.forEach(u => {
+    const userTurnos = turnosFiltrados.filter(t => String(t.id_usuario) === String(u.id));
+    let totalMinsUser = 0;
+    userTurnos.forEach(t => {
+      let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+      let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+      if (entMs && salMs && salMs > entMs) {
+        totalMinsUser += (salMs - entMs) / (1000 * 60);
+      } else if (t.horas_totales) {
+        totalMinsUser += parseFloat(t.horas_totales) * 60;
+      }
+    });
+    let totalHoras = totalMinsUser / 60;
+    let tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
+    let tipoPago = (u.tipo_pago || "Horas").trim();
+    let totalPagar = tipoPago === "Gasolina" ? (totalHoras * 1.4) * 0.50 : tipoPago === "Fijo" ? tarifaVal * semanas : totalHoras * tarifaVal;
+
+    let detalle = tipoPago === "Fijo" ? `Sueldo Fijo` : `${totalHoras.toFixed(2)} hrs x $${tarifaVal.toFixed(2)}`;
+    textoCopy += `• *${u.nombre}* (${detalle}): *$${totalPagar.toFixed(2)}*\n`;
+    granTotal += totalPagar;
+  });
+
+  textoCopy += `\n💰 *Total a Pagar:* *$${granTotal.toFixed(2)}*`;
+
+  navigator.clipboard.writeText(textoCopy).then(() => alert("¡Reporte de nómina copiado!")).catch(err => alert("Error al copiar: " + err));
 }
 
 function openConfigTarifasModal() {
