@@ -26,6 +26,16 @@ function getFormattedDate(d = new Date()) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// DAR FORMATO DD/MM/YYYY PARA PANTALLA Y REPORTES
+function formatFechaEsp(fechaISO) {
+  if (!fechaISO) return '';
+  const partes = fechaISO.split('-');
+  if (partes.length === 3) {
+    return `${partes[2]}/${partes[1]}/${partes[0]}`;
+  }
+  return fechaISO;
+}
+
 function getShortDateLabel(val) {
   if (!val) return '';
   try {
@@ -70,17 +80,19 @@ function iniciarRelojEnVivo() {
 function copiarReportePortapapeles(nombreTrabajador, accion, fechaEntrada, horaEntrada, fechaSalida = "", horaSalida = "", totalHorasStr = "", esContinuacion = false) {
   let mensaje = "";
   let etiquetaContinuacion = esContinuacion ? " (Continuación de turno)" : "";
+  let fechaEntradaEsp = formatFechaEsp(fechaEntrada);
 
   if (accion === "INICIO") {
     mensaje = `🟢 *INICIO DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
-              `📅 *Fecha:* ${fechaEntrada}\n` +
+              `📅 *Fecha:* ${fechaEntradaEsp}\n` +
               `⏰ *Hora Entrada:* ${horaEntrada}`;
   } else {
-    let detalleSalidaFecha = (fechaSalida && fechaSalida !== fechaEntrada) ? ` (${fechaSalida})` : '';
+    let fechaSalidaEsp = formatFechaEsp(fechaSalida);
+    let detalleSalidaFecha = (fechaSalida && fechaSalida !== fechaEntrada) ? ` (${fechaSalidaEsp})` : '';
     mensaje = `🔴 *FINALIZACIÓN DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
-              `📅 *Fecha Inicio:* ${fechaEntrada}\n` +
+              `📅 *Fecha Inicio:* ${fechaEntradaEsp}\n` +
               `⏰ *Entrada:* ${horaEntrada}\n` +
               `⏰ *Salida:* ${horaSalida}${detalleSalidaFecha}\n` +
               `⏱️ *Total Trabajado:* ${totalHorasStr}`;
@@ -465,7 +477,7 @@ function renderTablaTrabajador() {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${g.fecha}</strong></td>
+      <td><strong>${formatFechaEsp(g.fecha)}</strong></td>
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
       <td class="txt-green">${horasDisplay}</td>
@@ -497,7 +509,7 @@ function verDetalleDia(fecha) {
       return entA - entB;
     });
 
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${currentUser.nombre} (${fecha})`;
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${currentUser.nombre} (${formatFechaEsp(fecha)})`;
   let html = `<p>Registros del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
   
   listaTurnos.forEach((t, idx) => {
@@ -533,7 +545,10 @@ function verDetalleDia(fecha) {
   
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
-  if (modalDetalles) { modalDetalles.classList.remove("hidden"); modalDetalles.style.display = "flex"; }
+  if (modalDetalles) { 
+    modalDetalles.classList.remove("hidden"); 
+    modalDetalles.style.display = "flex"; 
+  }
 }
 
 async function actualizarTarifaIndividualTrabajador(nuevaTarifa) {
@@ -660,21 +675,35 @@ function renderHistorialAdmin() {
         fecha: t.fecha_inicio, 
         totalMins: 0, 
         activo: false, 
-        turnosActivosIds: [] 
+        turnosActivosIds: [],
+        primeraEntrada: null,
+        ultimaSalida: null
       };
     }
+    let grp = agrupado[key];
     let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
     let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
     
+    // Suma estricta de minutos a la fecha de inicio del turno
     if (entMs && salMs && salMs > entMs) {
-      agrupado[key].totalMins += (salMs - entMs) / (1000 * 60);
+      grp.totalMins += (salMs - entMs) / (1000 * 60);
     } else if (t.horas_totales) {
-      agrupado[key].totalMins += parseFloat(t.horas_totales) * 60;
+      grp.totalMins += parseFloat(t.horas_totales) * 60;
     }
 
-    if (t.estado === 'en_turno' || !t.hora_salida) {
-      agrupado[key].activo = true;
-      agrupado[key].turnosActivosIds.push(t.id);
+    if (t.hora_entrada && (!grp.primeraEntrada || entMs < (typeof grp.primeraEntrada === 'number' ? grp.primeraEntrada : new Date(grp.primeraEntrada).getTime()))) {
+      grp.primeraEntrada = t.hora_entrada;
+    }
+
+    if (salMs) {
+      if (!grp.ultimaSalida || salMs > (typeof grp.ultimaSalida === 'number' ? grp.ultimaSalida : new Date(grp.ultimaSalida).getTime())) {
+        grp.ultimaSalida = t.hora_salida;
+      }
+    } else {
+      if (t.estado === 'en_turno' || !t.hora_salida) {
+        grp.activo = true;
+        grp.turnosActivosIds.push(t.id);
+      }
     }
   });
 
@@ -686,6 +715,9 @@ function renderHistorialAdmin() {
     let horasDia = item.totalMins / 60;
     let dispMins = horasDia >= 1 ? `${horasDia.toFixed(2)} hrs` : `${Math.round(item.totalMins)} min`;
 
+    let hEnt = item.primeraEntrada ? getFormattedTime(item.primeraEntrada) : '-';
+    let hSal = item.activo ? '<span class="txt-green">En curso</span>' : (item.ultimaSalida ? getFormattedTime(item.ultimaSalida) : '-');
+
     let botonesForzar = "";
     if (item.activo) {
       item.turnosActivosIds.forEach(idT => {
@@ -696,8 +728,10 @@ function renderHistorialAdmin() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${item.nombre}</strong></td>
-      <td>${item.fecha}</td>
-      <td>${item.activo ? '<span class="txt-green">🟢 En Turno Activo</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
+      <td>${formatFechaEsp(item.fecha)}</td>
+      <td>${hEnt}</td>
+      <td>${hSal}</td>
+      <td>${item.activo ? '<span class="txt-green">🟢 En Turno</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
       <td>
         <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:4px 8px;">Detalles</button>
         ${botonesForzar}
@@ -855,7 +889,7 @@ function abrirResumenPagoModal() {
   let semanas = Math.max(1, (Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1) / 7);
   const turnosFiltrados = cachedTurnos.filter(t => t.fecha_inicio >= desde && t.fecha_inicio <= hasta);
   
-  document.getElementById("resumen-rango-fechas").innerText = `Período del ${desde} al ${hasta}`;
+  document.getElementById("resumen-rango-fechas").innerText = `Período del ${formatFechaEsp(desde)} al ${formatFechaEsp(hasta)}`;
   let html = `<ul style="list-style:none; padding:0; line-height:1.8;">`;
   let granTotal = 0;
 
@@ -904,7 +938,7 @@ function verDetallesAdminGlobal(userId, fecha) {
       return entA - entB;
     });
 
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${fecha})`;
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${formatFechaEsp(fecha)})`;
   let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
 
   listaTurnos.forEach((t, idx) => {
@@ -939,8 +973,11 @@ function verDetallesAdminGlobal(userId, fecha) {
   });
 
   document.getElementById("detalle-contenido").innerHTML = html;
-  document.getElementById("modal-detalles").classList.remove("hidden");
-  document.getElementById("modal-detalles").style.display = "flex";
+  const modalDetalles = document.getElementById("modal-detalles");
+  if (modalDetalles) {
+    modalDetalles.classList.remove("hidden");
+    modalDetalles.style.display = "flex";
+  }
 }
 
 async function borrarTurno(id) {
