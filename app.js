@@ -491,7 +491,7 @@ function renderTablaTrabajador() {
       <td>${hEntrada}</td>
       <td>${hSalida}</td>
       <td class="txt-green">${horasDisplay}</td>
-      <td><button onclick="verDetallesAdminGlobal(${currentUser.id}, '${g.fecha}')" class="btn-action btn-gray" style="padding:6px 12px; font-size:0.85rem;">Detalles</button></td>
+      <td><button onclick="verDetallesAdminGlobal(${currentUser.id}, '${g.fecha}')" class="btn-action btn-gray" style="padding:4px 8px; font-size:0.8rem;">Detalles</button></td>
     `;
     tbody.appendChild(tr);
   });
@@ -634,6 +634,7 @@ function renderHistorialAdmin() {
         fecha: t.fecha_inicio, 
         totalMins: 0, 
         activo: false, 
+        primerTurnoId: t.id,
         turnosActivosIds: [],
         primeraEntrada: null,
         ultimaSalida: null
@@ -679,7 +680,7 @@ function renderHistorialAdmin() {
     let botonesForzar = "";
     if (item.activo) {
       item.turnosActivosIds.forEach(idT => {
-        botonesForzar += `<button onclick="forzarSalida(${idT})" class="btn-action btn-red" style="padding:4px 8px; margin-left:4px; font-size:0.75rem;">Forzar Salida</button>`;
+        botonesForzar += `<button onclick="forzarSalida(${idT})" class="btn-action btn-red" style="padding:4px 8px; font-size:0.75rem;">Forzar Salida</button>`;
       });
     }
 
@@ -691,8 +692,12 @@ function renderHistorialAdmin() {
       <td>${hSal}</td>
       <td>${item.activo ? '<span class="txt-green">🟢 En Turno</span>' : `<span class="txt-green">${dispMins}</span>`}</td>
       <td>
-        <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:6px 12px; font-size:0.85rem;">Detalles</button>
-        ${botonesForzar}
+        <div class="actions-cell">
+          <button onclick="verDetallesAdminGlobal(${item.userId}, '${item.fecha}')" class="btn-action btn-gray" style="padding:5px 10px; font-size:0.8rem;">Detalles</button>
+          <button onclick="abrirModalEditarTurno(${item.primerTurnoId}, ${item.userId})" class="btn-action btn-blue" style="padding:5px 10px; font-size:0.8rem;">✏️ Editar</button>
+          <button onclick="borrarTurnosPorFecha(${item.userId}, '${item.fecha}')" class="btn-action btn-red" style="padding:5px 10px; font-size:0.8rem;">🗑️ Borrar</button>
+          ${botonesForzar}
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -712,47 +717,51 @@ function verDetallesAdminGlobal(userIdTarget, fechaTarget) {
       return entA - entB;
     });
 
-  document.getElementById("detalle-titulo").innerText = `Reporte Detallado de ${nombreUsuario} (${formatFechaEsp(fechaTarget)})`;
-  let html = `<p>Sesiones del día:</p><hr style="border-color:#334155; margin:10px 0;">`;
+  document.getElementById("detalle-titulo").innerText = `Reporte Detallado: ${nombreUsuario} (${formatFechaEsp(fechaTarget)})`;
+  let html = `<p style="font-size:0.85rem; color:var(--text-muted);">Sesiones registradas este día:</p><hr style="border-color:#334155; margin:10px 0;">`;
 
-  listaTurnos.forEach((t, idx) => {
-    let entDateStr = getFormattedDate(t.hora_entrada);
-    let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
+  if (listaTurnos.length === 0) {
+    html += `<p style="color:var(--text-muted); text-align:center;">No hay detalles adicionales.</p>`;
+  } else {
+    listaTurnos.forEach((t, idx) => {
+      let entDateStr = getFormattedDate(t.hora_entrada);
+      let salDateStr = t.hora_salida ? getFormattedDate(t.hora_salida) : '';
 
-    let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
-    let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
+      let entLabelDate = (entDateStr && entDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_entrada)})` : '';
+      let salLabelDate = (salDateStr && salDateStr !== t.fecha_inicio) ? ` (${getShortDateLabel(t.hora_salida)})` : '';
 
-    let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
-    let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
-    
-    let mins = 0;
-    let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
-    let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
-    if (entMs && salMs && salMs > entMs) {
-      mins = Math.round((salMs - entMs) / (1000 * 60));
-    } else if (t.horas_totales) {
-      mins = Math.round(t.horas_totales * 60);
-    }
+      let ent = t.hora_entrada ? `${getFormattedTime(t.hora_entrada)}${entLabelDate}` : '-';
+      let sal = t.hora_salida ? `${getFormattedTime(t.hora_salida)}${salLabelDate}` : 'En curso';
+      
+      let mins = 0;
+      let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
+      let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
+      if (entMs && salMs && salMs > entMs) {
+        mins = Math.round((salMs - entMs) / (1000 * 60));
+      } else if (t.horas_totales) {
+        mins = Math.round(t.horas_totales * 60);
+      }
 
-    let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
-    let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
+      let hrsText = mins >= 60 ? `${(mins / 60).toFixed(2)} hrs` : `${mins} min`;
+      let tagContinuando = idx > 0 ? `<div class="badge-continuacion">Continuación de turno</div><br>` : '';
 
-    let botonesAdminCard = "";
-    if (isAdmin) {
-      botonesAdminCard = `<div class="flex-row" style="margin-top:8px;">` +
-                           `<button onclick="abrirModalEditarTurno(${t.id}, ${userIdTarget}, '${fechaTarget}')" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar</button>` +
-                           `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Eliminar</button>` +
-                         `</div>`;
-    }
+      let botonesAdminCard = "";
+      if (isAdmin) {
+        botonesAdminCard = `<div class="flex-row" style="margin-top:8px;">` +
+                             `<button onclick="abrirModalEditarTurno(${t.id}, ${userIdTarget})" class="btn-action btn-blue" style="padding:4px 6px; font-size:0.75rem;">✏️ Editar Este Turno</button>` +
+                             `<button onclick="borrarTurno(${t.id})" class="btn-action btn-red" style="padding:4px 6px; font-size:0.75rem;">🗑️ Borrar Este Turno</button>` +
+                           `</div>`;
+      }
 
-    html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
-            `${tagContinuando}` +
-            `<small>Entrada: ${ent}</small><br>` +
-            `<small>Salida: ${sal}</small><br>` +
-            `Total: <span class="txt-green">${hrsText}</span><br>` +
-            `${botonesAdminCard}` +
-            `</div>`;
-  });
+      html += `<div style="background:#1e293b; padding:10px; border-radius:6px; margin-bottom:8px;">` +
+              `${tagContinuando}` +
+              `<small>Entrada: ${ent}</small><br>` +
+              `<small>Salida: ${sal}</small><br>` +
+              `Total: <span class="txt-green">${hrsText}</span><br>` +
+              `${botonesAdminCard}` +
+              `</div>`;
+    });
+  }
 
   document.getElementById("detalle-contenido").innerHTML = html;
   const modalDetalles = document.getElementById("modal-detalles");
@@ -762,14 +771,13 @@ function verDetallesAdminGlobal(userIdTarget, fechaTarget) {
   }
 }
 
-// FUNCIONALIDAD DE EDICIÓN DE TURNO DE ASISTENCIA
-function abrirModalEditarTurno(idTurno, userId, fechaRef) {
+// FUNCIONALIDAD DE EDICIÓN DIRECTA DE TURNO DESDE LA TABLA
+function abrirModalEditarTurno(idTurno, userId) {
   let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
   if (!t) return;
 
   document.getElementById("edit-turno-id").value = t.id;
   document.getElementById("edit-turno-userid").value = userId;
-  document.getElementById("edit-turno-fecharef").value = fechaRef;
 
   const fEnt = t.hora_entrada ? getFormattedDate(t.hora_entrada) : t.fecha_inicio;
   const fSal = t.hora_salida ? getFormattedDate(t.hora_salida) : fEnt;
@@ -797,7 +805,6 @@ function cerrarModalEditarTurno() {
 async function guardarEdicionTurno() {
   const idTurno = document.getElementById("edit-turno-id").value;
   const userId = document.getElementById("edit-turno-userid").value;
-  const fechaRef = document.getElementById("edit-turno-fecharef").value;
 
   const fInicio = document.getElementById("edit-turno-fechainicio").value;
   const fFin = document.getElementById("edit-turno-fechafin").value || fInicio;
@@ -842,16 +849,55 @@ async function guardarEdicionTurno() {
   }
 
   cerrarModalEditarTurno();
+  closeModals();
   
   if (currentUser && currentUser.rol === "admin") {
     await loadAdminData();
-    verDetallesAdminGlobal(userId, fInicio);
   } else {
     renderTablaTrabajador();
-    verDetallesAdminGlobal(userId, fInicio);
   }
 
   alert("¡Registro actualizado correctamente!");
+}
+
+async function borrarTurnosPorFecha(userId, fecha) {
+  if (confirm(`¿Borrar todos los registros de este día (${formatFechaEsp(fecha)})?`)) {
+    const idsABorrar = cachedTurnos
+      .filter(t => String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha)
+      .map(t => t.id);
+
+    cachedTurnos = cachedTurnos.filter(t => !(String(t.id_usuario) === String(userId) && t.fecha_inicio === fecha));
+    guardarTurnosLocales();
+
+    if (supabaseClient && idsABorrar.length > 0) {
+      try {
+        await supabaseClient.from("registros_turnos").delete().in("id", idsABorrar);
+      } catch (e) {}
+    }
+
+    closeModals();
+    if (currentUser && currentUser.rol === "admin") {
+      await loadAdminData();
+    } else {
+      renderTablaTrabajador();
+    }
+  }
+}
+
+async function borrarTurno(id) {
+  if (confirm("¿Eliminar este registro de turno?")) {
+    cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
+    guardarTurnosLocales();
+    if (supabaseClient) {
+      try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e) {}
+    }
+    closeModals();
+    if (currentUser && currentUser.rol === "admin") {
+      await loadAdminData();
+    } else {
+      renderTablaTrabajador();
+    }
+  }
 }
 
 function togglePinVisibility(id, btnId) {
@@ -1050,22 +1096,6 @@ function abrirResumenPagoModal() {
 function copiarResumenPago() {
   const textoFinal = `📊 REPORTE DE NÓMINA\n` + document.getElementById("resumen-pago-contenido").innerText;
   navigator.clipboard.writeText(textoFinal).then(() => alert("¡Reporte copiado!")).catch(err => alert("Error al copiar: " + err));
-}
-
-async function borrarTurno(id) {
-  if (confirm("¿Eliminar este registro de turno?")) {
-    cachedTurnos = cachedTurnos.filter(t => String(t.id) !== String(id));
-    guardarTurnosLocales();
-    if (supabaseClient) {
-      try { await supabaseClient.from("registros_turnos").delete().eq("id", id); } catch (e) {}
-    }
-    closeModals();
-    if (currentUser && currentUser.rol === "admin") {
-      await loadAdminData();
-    } else {
-      renderTablaTrabajador();
-    }
-  }
 }
 
 function openConfigTarifasModal() {
