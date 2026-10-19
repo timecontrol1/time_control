@@ -195,6 +195,7 @@
       justify-content: center;
       z-index: 100;
       padding: 20px;
+      overflow-y: auto;
     }
 
     .modal-content {
@@ -456,11 +457,12 @@
     </div>
   </div>
 
+  <!-- MODAL: REPORTE DE NÓMINA (EXTENDIBLE SIN DESPLAZAMIENTO INTERNO) -->
   <div id="modal-resumen-pago" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 480px;">
+    <div class="modal-content" style="max-width: 500px; height: auto;">
       <h3>Reporte de Nómina</h3>
       <p id="resumen-rango-fechas" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px; text-align:center;"></p>
-      <div id="resumen-pago-contenido" style="max-height: 250px; overflow-y: auto; background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px;"></div>
+      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px;"></div>
       <div class="flex-row">
         <button onclick="copiarResumenPago()" class="btn-action" style="background:#3b82f6; color:#fff;">📋 Copiar Reporte</button>
         <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
