@@ -14,6 +14,7 @@
       --border-color: #334155;
       --accent-green: #10b981;
       --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
     }
@@ -146,6 +147,11 @@
       color: #ffffff !important;
     }
 
+    .btn-blue {
+      background-color: var(--accent-blue) !important;
+      color: #ffffff !important;
+    }
+
     .btn-gray {
       background-color: var(--border-color) !important;
       color: var(--text-main) !important;
@@ -204,7 +210,7 @@
       border-radius: 12px;
       padding: 24px;
       width: 100%;
-      max-width: 420px;
+      max-width: 440px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
     }
 
@@ -404,8 +410,43 @@
   <div id="modal-detalles" class="modal-backdrop">
     <div class="modal-content">
       <h3 id="detalle-titulo">Detalle de Turnos</h3>
-      <div id="detalle-contenido" style="max-height: 250px; overflow-y: auto; margin-bottom: 20px;"></div>
+      <div id="detalle-contenido" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px;"></div>
       <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- MODAL DE EDICIÓN DE TURNO -->
+  <div id="modal-editar-turno" class="modal-backdrop">
+    <div class="modal-content">
+      <h3>Editar Registro de Turno</h3>
+      <input type="hidden" id="edit-turno-id">
+      <input type="hidden" id="edit-turno-userid">
+      <input type="hidden" id="edit-turno-fecharef">
+      
+      <div class="flex-row">
+        <div class="form-group" style="flex:1;">
+          <label>Fecha Inicio:</label>
+          <input type="date" id="edit-turno-fechainicio">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>Fecha Salida:</label>
+          <input type="date" id="edit-turno-fechafin">
+        </div>
+      </div>
+      <div class="flex-row">
+        <div class="form-group" style="flex:1;">
+          <label>Hora Entrada:</label>
+          <input type="time" id="edit-turno-horaentrada">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>Hora Salida:</label>
+          <input type="time" id="edit-turno-horasalida">
+        </div>
+      </div>
+      <div class="flex-row" style="margin-top: 15px;">
+        <button onclick="cerrarModalEditarTurno()" class="btn-action btn-gray">Cancelar</button>
+        <button onclick="guardarEdicionTurno()" class="btn-action btn-blue">Guardar Cambios</button>
+      </div>
     </div>
   </div>
 
