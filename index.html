@@ -205,9 +205,9 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(3, 7, 18, 0.8);
+      background: rgba(3, 7, 18, 0.85);
       display: none;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       z-index: 100;
       padding: 20px;
@@ -222,6 +222,8 @@
       width: 100%;
       max-width: 480px;
       box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
+      margin-top: auto;
+      margin-bottom: auto;
     }
 
     .flex-row {
@@ -308,7 +310,7 @@
     </div>
 
     <h4 style="font-size: 0.95rem; margin-bottom: 8px; color:var(--text-muted);">Mis Turnos Registrados (Actuales Arriba)</h4>
-    <div style="max-height: 220px; overflow-y: auto;">
+    <div style="max-height: 250px; overflow-y: auto;">
       <table>
         <thead>
           <tr>
@@ -499,13 +501,13 @@
     </div>
   </div>
 
-  <!-- REPORTE DE NÓMINA CON TABLA DETALLADA -->
+  <!-- REPORTE DE NÓMINA COMPLETO SIN BARRA DE DESPLAZAMIENTO -->
   <div id="modal-resumen-pago" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 650px; width: 95%; height: auto;">
+    <div class="modal-content" style="max-width: 680px; width: 95%; height: auto; max-height: none;">
       <h3>Reporte de Nómina</h3>
       <p id="resumen-rango-fechas" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px; text-align:center;"></p>
       
-      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px; max-height: 350px; overflow-y: auto;"></div>
+      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px; height: auto; max-height: none; overflow: visible;"></div>
       
       <div class="flex-row">
         <button onclick="copiarResumenPago()" class="btn-action" style="background:#3b82f6; color:#fff;">📋 Copiar Reporte</button>
