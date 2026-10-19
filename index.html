@@ -445,6 +445,7 @@
     </div>
   </div>
 
+  <!-- MODAL: CARGAR HORAS MANUALES CON DOS FECHAS -->
   <div id="modal-agregar-horas" class="modal-backdrop">
     <div class="modal-content">
       <h3>Cargar Horas Manuales</h3>
@@ -452,17 +453,25 @@
         <label>Trabajador:</label>
         <select id="manual-user-select"></select>
       </div>
-      <div class="form-group">
-        <label>Fecha:</label>
-        <input type="date" id="manual-fecha">
+      <div class="flex-row">
+        <div class="form-group" style="flex:1;">
+          <label>Fecha Inicio:</label>
+          <input type="date" id="manual-fecha-inicio">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>Fecha Salida:</label>
+          <input type="date" id="manual-fecha-fin">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Hora Entrada:</label>
-        <input type="time" id="manual-entrada" value="08:00">
-      </div>
-      <div class="form-group">
-        <label>Hora Salida:</label>
-        <input type="time" id="manual-salida" value="17:00">
+      <div class="flex-row">
+        <div class="form-group" style="flex:1;">
+          <label>Hora Entrada:</label>
+          <input type="time" id="manual-entrada" value="14:00">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>Hora Salida:</label>
+          <input type="time" id="manual-salida" value="00:50">
+        </div>
       </div>
       <div class="flex-row" style="margin-top: 15px;">
         <button onclick="closeModals()" class="btn-action btn-gray">Cancelar</button>
