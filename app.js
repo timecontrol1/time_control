@@ -59,18 +59,23 @@ function iniciarRelojEnVivo() {
   setInterval(actualizarReloj, 1000);
 }
 
-// ENVÍO DE WHATSAPP CON PROXY
-function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora) {
+// ENVÍO DE WHATSAPP CON FORMATO DETALLADO
+function enviarNotificacionWhatsApp(nombreTrabajador, accion, fecha, hora, totalHorasStr = "") {
   if (!WHATSAPP_GROUP_ID) return;
 
-  const icono = accion === "INICIO" ? "🟢" : "🔴";
-  const titulo = accion === "INICIO" ? "INICIO DE TURNO" : "FINALIZACIÓN DE TURNO";
-
-  const mensaje = `${icono} *${titulo}*\n` +
-                  `👤 *Trabajador:* ${nombreTrabajador}\n` +
-                  `📅 *Fecha:* ${fecha}\n` +
-                  `⏰ *Hora:* ${hora}\n` +
-                  `📌 *Estado:* Registrado en sistema`;
+  let mensaje = "";
+  if (accion === "INICIO") {
+    mensaje = `🟢 *INICIO DE TURNO*\n` +
+              `👤 *Trabajador:* ${nombreTrabajador}\n` +
+              `📅 *Fecha:* ${fecha}\n` +
+              `⏰ *Hora:* ${hora}`;
+  } else {
+    mensaje = `🔴 *FINALIZACIÓN DE TURNO*\n` +
+              `👤 *Trabajador:* ${nombreTrabajador}\n` +
+              `📅 *Fecha:* ${fecha}\n` +
+              `⏰ *Hora de Salida:* ${hora}\n` +
+              `⏱️ *Total Trabajado:* ${totalHorasStr}`;
+  }
 
   const greenApiUrl = `https://7107.api.greenapi.com/waInstance${GREEN_ID_INSTANCE}/sendMessage/${GREEN_API_TOKEN}`;
   const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(greenApiUrl);
@@ -355,6 +360,7 @@ function ejecutarToggleTurno() {
       }).catch(e => console.log(e));
     }
 
+    // Envío por WhatsApp
     enviarNotificacionWhatsApp(currentUser.nombre, "INICIO", fechaStr, horaStr);
 
   } else {
@@ -365,6 +371,9 @@ function ejecutarToggleTurno() {
     let salidaMs = now.getTime();
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
+
+    let totalMins = Math.round(diffMs / (1000 * 60));
+    let totalHorasStr = diffHrs >= 1 ? `${diffHrs.toFixed(2)} hrs` : `${totalMins} min`;
 
     const turnoIdAActualizar = currentShift.id;
     currentShift.hora_salida = salidaMs;
@@ -387,7 +396,8 @@ function ejecutarToggleTurno() {
       }).catch(e => console.log(e));
     }
 
-    enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr);
+    // Envío por WhatsApp con horas acumuladas
+    enviarNotificacionWhatsApp(currentUser.nombre, "FIN", fechaStr, horaStr, totalHorasStr);
   }
 }
 
