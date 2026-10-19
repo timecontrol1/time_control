@@ -180,7 +180,7 @@ function configurarRealtimeSupabase() {
   if (!supabaseClient) return;
   try {
     supabaseClient
-      .channel('cambios-turnos-global-v2')
+      .channel('cambios-turnos-global-v3')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_turnos' }, payload => {
         syncDataFromSupabase();
       })
@@ -282,9 +282,7 @@ async function syncDataFromSupabase() {
         else loadWorkerData();
       }
     }
-  } catch (e) {
-    console.error("Error sincronizando con Supabase:", e);
-  }
+  } catch (e) {}
 }
 
 async function login() {
@@ -293,7 +291,6 @@ async function login() {
 
   if (!uInput || !pInput) { alert("Ingresa usuario y PIN."); return; }
 
-  // Sincronizar antes de validar para asegurar tener los usuarios y IDs más recientes de Supabase
   if (supabaseClient) {
     try {
       const { data: users } = await supabaseClient.from("usuarios").select("*");
@@ -396,7 +393,7 @@ async function ejecutarToggleTurno() {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: horaMs,
+      hora_entrada: Number(horaMs),
       estado: "en_turno",
       origen: "sistema"
     };
@@ -413,7 +410,7 @@ async function ejecutarToggleTurno() {
         const { data, error } = await supabaseClient.from("registros_turnos").insert([{
           id_usuario: Number(currentUser.id),
           fecha_inicio: fechaStr,
-          hora_entrada: horaMs,
+          hora_entrada: Number(horaMs),
           estado: "en_turno",
           origen: "sistema"
         }]).select();
@@ -439,7 +436,7 @@ async function ejecutarToggleTurno() {
       ? currentShift.hora_entrada 
       : new Date(currentShift.hora_entrada).getTime();
 
-    let salidaMs = horaMs;
+    let salidaMs = Number(horaMs);
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
 
@@ -464,7 +461,7 @@ async function ejecutarToggleTurno() {
     if (supabaseClient) {
       try {
         const { error } = await supabaseClient.from("registros_turnos").update({
-          hora_salida: salidaMs,
+          hora_salida: Number(salidaMs),
           horas_totales: parseFloat(diffHrs.toFixed(4)),
           estado: "completado"
         }).eq("id", turnoIdAActualizar);
@@ -753,8 +750,8 @@ async function guardarEdicionTurno() {
   let t = cachedTurnos.find(x => String(x.id) === String(idTurno));
   if (t) {
     t.fecha_inicio = nuevaFechaInicio;
-    t.hora_entrada = tEntrada;
-    t.hora_salida = tSalida;
+    t.hora_entrada = Number(tEntrada);
+    t.hora_salida = Number(tSalida);
     t.horas_totales = parseFloat(diffHrs.toFixed(4));
     t.estado = "completado";
     guardarTurnosLocales();
@@ -764,8 +761,8 @@ async function guardarEdicionTurno() {
     try {
       await supabaseClient.from("registros_turnos").update({
         fecha_inicio: nuevaFechaInicio,
-        hora_entrada: tEntrada,
-        hora_salida: tSalida,
+        hora_entrada: Number(tEntrada),
+        hora_salida: Number(tSalida),
         horas_totales: parseFloat(diffHrs.toFixed(4)),
         estado: "completado"
       }).eq("id", idTurno);
@@ -799,7 +796,7 @@ async function forzarSalida(idTurno) {
     if (t) {
       let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
       let diffHrs = Math.max(0, (now.getTime() - entMs) / (1000 * 60 * 60));
-      t.hora_salida = now.getTime();
+      t.hora_salida = Number(now.getTime());
       t.horas_totales = parseFloat(diffHrs.toFixed(4));
       t.estado = "completado";
       guardarTurnosLocales();
@@ -807,7 +804,7 @@ async function forzarSalida(idTurno) {
     if (supabaseClient) {
       try { 
         await supabaseClient.from("registros_turnos").update({ 
-          hora_salida: now.getTime(), 
+          hora_salida: Number(now.getTime()), 
           horas_totales: t ? t.horas_totales : 1, 
           estado: "completado" 
         }).eq("id", idTurno); 
@@ -933,10 +930,10 @@ async function guardarHorasManuales() {
   let diffHrs = Math.max(0, (tSalida - tEntrada) / (1000 * 60 * 60));
 
   const payloadSupabase = {
-    id_usuario: userId,
+    id_usuario: Number(userId),
     fecha_inicio: fechaInicio,
-    hora_entrada: tEntrada,
-    hora_salida: tSalida,
+    hora_entrada: Number(tEntrada),
+    hora_salida: Number(tSalida),
     horas_totales: parseFloat(diffHrs.toFixed(4)),
     estado: "completado",
     origen: "manual"
