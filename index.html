@@ -307,7 +307,7 @@
       </div>
     </div>
 
-    <h4 style="font-size: 0.95rem; margin-bottom: 8px; color:var(--text-muted);">Mis Turnos Registrados</h4>
+    <h4 style="font-size: 0.95rem; margin-bottom: 8px; color:var(--text-muted);">Mis Turnos Registrados (Actuales Arriba)</h4>
     <div style="max-height: 220px; overflow-y: auto;">
       <table>
         <thead>
@@ -372,7 +372,7 @@
       </table>
     </div>
 
-    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Historial de Reportes (Una línea por turno)</h4>
+    <h4 style="margin-bottom: 10px; color:var(--text-muted);">Historial de Reportes (Actuales Arriba / Viejos Abajo)</h4>
     <div style="overflow-x: auto; max-height: 380px;">
       <table>
         <thead>
@@ -401,7 +401,7 @@
     </div>
   </div>
 
-  <!-- MODAL DE EDICIÓN DE TURNO (UNA LÍNEA / UN REGISTRO) -->
+  <!-- MODAL DE EDICIÓN DE TURNO -->
   <div id="modal-editar-turno" class="modal-backdrop">
     <div class="modal-content">
       <h3 style="display:flex; align-items:center; justify-content:center; gap:8px; color: #10b981;">✏️ Editar Registro de Turno</h3>
@@ -499,12 +499,14 @@
     </div>
   </div>
 
-  <!-- REPORTE DE NÓMINA -->
+  <!-- REPORTE DE NÓMINA CON TABLA DETALLADA -->
   <div id="modal-resumen-pago" class="modal-backdrop">
-    <div class="modal-content" style="max-width: 550px; height: auto;">
+    <div class="modal-content" style="max-width: 650px; width: 95%; height: auto;">
       <h3>Reporte de Nómina</h3>
       <p id="resumen-rango-fechas" style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px; text-align:center;"></p>
-      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px; max-height: 300px; overflow-y: auto;"></div>
+      
+      <div id="resumen-pago-contenido" style="background:var(--bg-input); padding: 12px; border-radius: 8px; margin-bottom: 15px; max-height: 350px; overflow-y: auto;"></div>
+      
       <div class="flex-row">
         <button onclick="copiarResumenPago()" class="btn-action" style="background:#3b82f6; color:#fff;">📋 Copiar Reporte</button>
         <button onclick="closeModals()" class="btn-action btn-gray">Cerrar</button>
