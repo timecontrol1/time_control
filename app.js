@@ -112,7 +112,7 @@ let currentUser = null;
 let currentShift = null;
 
 let cachedUsers = [
-  { id: 1, nombre: "Administrador", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
+  { id: 1, nombre: "Ángel", usuario: "administrador", pin: "1234", rol: "admin", tipo_pago: "Fijo", tarifa: 150.00, cargo: "Gerencia" },
   { id: 2, nombre: "Ronald", usuario: "ronald", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.00, cargo: "Operaciones" },
   { id: 3, nombre: "Ricardo", usuario: "ricardo", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.00, cargo: "Operaciones" },
   { id: 4, nombre: "Betzaida", usuario: "betzaida", pin: "1234", rol: "trabajador", tipo_pago: "Horas", tarifa: 1.00, cargo: "Operaciones" },
@@ -145,7 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
   iniciarRelojEnVivo();
 
   syncDataFromSupabase();
-  setInterval(syncDataFromSupabase, 3000); // Sincronización en tiempo real cada 3 segundos
+  setInterval(syncDataFromSupabase, 2000); // Sincronización en tiempo real ultra rápida cada 2 segundos
 
   try {
     const savedUserId = localStorage.getItem("active_user_id");
@@ -222,21 +222,26 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   if (elHasta) elHasta.value = formatDate(sunday);
 }
 
-// SINCRONIZACIÓN PERSISTENTE MEJORADA PARA TURNOS Y USUARIOS ACTIVO
+// SINCRONIZACIÓN ESTRICTA Y ENLAZADA ENTRE PANELES
 async function syncDataFromSupabase() {
   if (!supabaseClient) return;
   try {
     const { data: users, error: errU } = await supabaseClient.from("usuarios").select("*").order("id", { ascending: true });
-    if (!errU && users && users.length > 0) cachedUsers = users;
+    if (!errU && users && users.length > 0) {
+      cachedUsers = users;
+      // Asegurar siempre que el admin sea Ángel
+      let adminObj = cachedUsers.find(u => u.usuario === 'administrador' || u.rol === 'admin');
+      if (adminObj) adminObj.nombre = "Ángel";
+    }
 
     const { data: turnosRemote, error: errT } = await supabaseClient.from("registros_turnos").select("*").order("hora_entrada", { ascending: false });
     if (!errT && turnosRemote) {
       let mapTurnos = new Map();
       
-      // Conserva turnos locales recientes para evitar pérdida en recargas
+      // Mantiene turnos locales vigentes
       cachedTurnos.forEach(t => mapTurnos.set(String(t.id), t));
       
-      // Integra los datos actualizados de Supabase (incluyendo manuales y turnos en vivo de otras PCs)
+      // Integra datos remotos de Supabase en tiempo real
       turnosRemote.forEach(t => mapTurnos.set(String(t.id), t));
       
       cachedTurnos = Array.from(mapTurnos.values()).sort((a,b) => b.hora_entrada - a.hora_entrada);
@@ -261,10 +266,10 @@ function login() {
   let user = cachedUsers.find(u => 
     (u.usuario || "").toLowerCase() === uInput || 
     (u.nombre || "").toLowerCase() === uInput ||
-    ((uInput === "admin" || uInput === "administrador") && (u.usuario === "administrador" || u.rol === "admin"))
+    ((uInput === "admin" || uInput === "administrador" || uInput === "angel") && (u.usuario === "administrador" || u.rol === "admin"))
   );
 
-  if (!user && (uInput === "admin" || uInput === "administrador") && pInput === "1234") {
+  if (!user && (uInput === "admin" || uInput === "administrador" || uInput === "angel") && pInput === "1234") {
     user = cachedUsers.find(u => u.rol === "admin");
   }
 
@@ -281,7 +286,7 @@ function login() {
       loadAdminData();
     } else {
       document.getElementById("sec-trabajador").classList.remove("hidden");
-      document.getElementById("worker-title").innerText = `Trabajador: ${currentUser.nombre}`;
+      document.getElementById("worker-title", "").innerText = `Trabajador: ${currentUser.nombre}`;
       document.getElementById("w-tarifa-input").value = currentUser.tarifa !== undefined ? currentUser.tarifa : 1.00;
       initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
       loadWorkerData();
@@ -424,7 +429,6 @@ async function ejecutarToggleTurno() {
   }
 }
 
-// RENDER HISTORIAL DE REPORTES DEL TRABAJADOR
 function renderTablaTrabajador() {
   const desde = document.getElementById("w-filtro-desde") ? document.getElementById("w-filtro-desde").value : "";
   const hasta = document.getElementById("w-filtro-hasta") ? document.getElementById("w-filtro-hasta").value : "";
@@ -574,7 +578,7 @@ async function actualizarTarifaUsuarioAdmin(userId, nuevaTarifa) {
   }
 }
 
-// HISTORIAL DE REPORTES EN ADMINISTRACIÓN (ACTUALES ARRIBA, INCLUYENDO ACTIVOS)
+// HISTORIAL DE REPORTES EN ADMINISTRACIÓN ENLAZADO EN TIEMPO REAL
 function renderHistorialAdmin() {
   const desde = document.getElementById("filtro-desde") ? document.getElementById("filtro-desde").value : "";
   const hasta = document.getElementById("filtro-hasta") ? document.getElementById("filtro-hasta").value : "";
@@ -783,6 +787,13 @@ function openNuevoUsuarioModal() {
 function openEditarUsuarioModal(id) {
   const user = cachedUsers.find(u => String(u.id) === String(id));
   if (!user) return;
+  
+  // Bloquear edición del usuario administrador (Ángel) para evitar duplicados o cambios de nombre
+  if (user.usuario === 'administrador' || user.rol === 'admin') {
+    alert("El usuario administrador (Ángel) es fijo y no requiere edición.");
+    return;
+  }
+
   document.getElementById("modal-user-title").innerText = "Editar Usuario: " + user.nombre;
   document.getElementById("edit-user-id").value = user.id;
   document.getElementById("edit-user-nombre").value = user.nombre;
@@ -818,6 +829,11 @@ async function guardarUsuario() {
 }
 
 async function borrarUsuario(id) {
+  let user = cachedUsers.find(u => String(u.id) === String(id));
+  if (user && (user.usuario === 'administrador' || user.rol === 'admin')) {
+    alert("No se puede eliminar al administrador principal.");
+    return;
+  }
   if (confirm("¿Borrar usuario de forma permanente?")) {
     if (supabaseClient) {
       await supabaseClient.from("usuarios").delete().eq("id", id);
@@ -839,7 +855,6 @@ function openAgregarHorasModal() {
   document.getElementById("modal-agregar-horas").style.display = "flex";
 }
 
-// GUARDAR HORAS MANUALES CON PERSISTENCIA INMEDIATA Y SINCRONIZACIÓN
 async function guardarHorasManuales() {
   const userId = parseInt(document.getElementById("manual-user-select").value);
   const fechaInicio = document.getElementById("manual-fecha-inicio").value;
@@ -892,7 +907,6 @@ async function guardarHorasManuales() {
   alert("¡Horas cargadas correctamente!");
 }
 
-// REPORTE DE NÓMINA EN CUADRO COMPLETO SIN SCROLL
 function abrirResumenPagoModal() {
   const desde = document.getElementById("filtro-desde").value;
   const hasta = document.getElementById("filtro-hasta").value;
