@@ -39,17 +39,14 @@ function getFormattedDateTime(val) {
   try {
     const d = typeof val === 'number' ? new Date(val) : new Date(val);
     const vzla = getVenezuelaDate(d);
-    const yyyy = vzla.getFullYear();
-    const mm = String(vzla.getMonth() + 1).padStart(2, '0');
-    const dd = String(vzla.getDate()).padStart(2, '0');
     let hours = vzla.getHours();
     const minutes = String(vzla.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
     hours = hours ? hours : 12;
-    return `${dd}-${mm}-${yyyy} ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+    return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
   } catch(e) { 
-    return '--/--/---- --:--'; 
+    return '--:-- --'; 
   }
 }
 
@@ -71,7 +68,11 @@ function getDateTimeLocalString(val) {
 function iniciarRelojEnVivo() {
   const actualizarReloj = () => {
     const now = new Date();
-    const horaTexto = `🇻🇪 Hora Actual: ${getFormattedDateTime(now)}`;
+    const vzla = getVenezuelaDate(now);
+    const yyyy = vzla.getFullYear();
+    const mm = String(vzla.getMonth() + 1).padStart(2, '0');
+    const dd = String(vzla.getDate()).padStart(2, '0');
+    const horaTexto = `🇻🇪 Hora Actual: ${dd}-${mm}-${yyyy} ${getFormattedDateTime(now)}`;
     document.querySelectorAll("#reloj-venezuela").forEach(el => {
       el.innerText = horaTexto;
     });
@@ -84,20 +85,22 @@ function copiarReportePortapapeles(nombreTrabajador, accion, fechaEntrada, horaE
   let mensaje = "";
   let etiquetaContinuacion = esContinuacion ? " (Continuación de turno)" : "";
   let fechaEntradaEsp = formatFechaEsp(fechaEntrada);
+  let horaEntradaLimpia = getFormattedDateTime(new Date(horaEntrada));
 
   if (accion === "INICIO") {
     mensaje = `🟢 *INICIO DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
               `📅 *Fecha:* ${fechaEntradaEsp}\n` +
-              `⏰ *Hora Entrada:* ${horaEntrada}`;
+              `⏰ *Hora Entrada:* ${horaEntradaLimpia}`;
   } else {
     let fechaSalidaEsp = formatFechaEsp(fechaSalida);
+    let horaSalidaLimpia = getFormattedDateTime(new Date(horaSalida));
     let detalleSalidaFecha = (fechaSalida && fechaSalida !== fechaEntrada) ? ` (${fechaSalidaEsp})` : '';
     mensaje = `🔴 *FINALIZACIÓN DE TURNO${etiquetaContinuacion}*\n` +
               `👤 *Trabajador:* ${nombreTrabajador}\n` +
               `📅 *Fecha Inicio:* ${fechaEntradaEsp}\n` +
-              `⏰ *Entrada:* ${horaEntrada}\n` +
-              `⏰ *Salida:* ${horaSalida}${detalleSalidaFecha}\n` +
+              `⏰ *Entrada:* ${horaEntradaLimpia}\n` +
+              `⏰ *Salida:* ${horaSalidaLimpia}${detalleSalidaFecha}\n` +
               `⏱️ *Total Trabajado:* ${totalHorasStr}`;
   }
 
@@ -173,15 +176,23 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// CANAL REALTIME MULTIDISPOSITIVO ROBUSTO
 function configurarRealtimeSupabase() {
   if (!supabaseClient) return;
   try {
     supabaseClient
-      .channel('public:registros_turnos')
+      .channel('cambios-turnos-global')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_turnos' }, payload => {
         syncDataFromSupabase();
       })
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, payload => {
+        syncDataFromSupabase();
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          syncDataFromSupabase();
+        }
+      });
   } catch (err) {}
 }
 
@@ -359,7 +370,7 @@ async function ejecutarToggleTurno() {
   closeModals();
   const now = new Date();
   const fechaStr = getFormattedDate(now);
-  const horaStr = getFormattedDateTime(now);
+  const horaMs = now.getTime();
 
   const turnosPreviosDia = cachedTurnos.filter(t => String(t.id_usuario) === String(currentUser.id) && t.fecha_inicio === fechaStr);
   const esContinuacion = turnosPreviosDia.length > 0;
@@ -369,7 +380,7 @@ async function ejecutarToggleTurno() {
       id: Date.now(),
       id_usuario: Number(currentUser.id),
       fecha_inicio: fechaStr,
-      hora_entrada: now.getTime(),
+      hora_entrada: horaMs,
       estado: "en_turno",
       origen: "sistema"
     };
@@ -386,7 +397,7 @@ async function ejecutarToggleTurno() {
         const { data, error } = await supabaseClient.from("registros_turnos").insert([{
           id_usuario: Number(currentUser.id),
           fecha_inicio: fechaStr,
-          hora_entrada: now.getTime(),
+          hora_entrada: horaMs,
           estado: "en_turno",
           origen: "sistema"
         }]).select();
@@ -399,14 +410,14 @@ async function ejecutarToggleTurno() {
       } catch(e){}
     }
 
-    copiarReportePortapapeles(currentUser.nombre, "INICIO", fechaStr, horaStr, "", "", "", esContinuacion);
+    copiarReportePortapapeles(currentUser.nombre, "INICIO", fechaStr, horaMs, "", "", "", esContinuacion);
 
   } else {
     let entradaMs = typeof currentShift.hora_entrada === 'number' 
       ? currentShift.hora_entrada 
       : new Date(currentShift.hora_entrada).getTime();
 
-    let salidaMs = now.getTime();
+    let salidaMs = horaMs;
     let diffMs = Math.max(0, salidaMs - entradaMs);
     let diffHrs = diffMs / (1000 * 60 * 60);
 
@@ -414,7 +425,7 @@ async function ejecutarToggleTurno() {
     let totalHorasStr = diffHrs >= 1 ? `${diffHrs.toFixed(2)} hrs` : `${totalMins} min`;
 
     const fechaEntradaTurno = currentShift.fecha_inicio;
-    const horaEntradaTurno = getFormattedDateTime(currentShift.hora_entrada);
+    const horaEntradaMs = currentShift.hora_entrada;
     const fechaSalidaTurno = getFormattedDate(now);
 
     currentShift.hora_salida = salidaMs;
@@ -439,7 +450,7 @@ async function ejecutarToggleTurno() {
     }
 
     const esContinuacionSalida = turnosPreviosDia.length > 1;
-    copiarReportePortapapeles(currentUser.nombre, "FIN", fechaEntradaTurno, horaEntradaTurno, fechaSalidaTurno, horaStr, totalHorasStr, esContinuacionSalida);
+    copiarReportePortapapeles(currentUser.nombre, "FIN", fechaEntradaTurno, horaEntradaMs, fechaSalidaTurno, salidaMs, totalHorasStr, esContinuacionSalida);
   }
 }
 
@@ -477,8 +488,8 @@ function renderTablaTrabajador() {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${getFormattedDateTime(t.hora_entrada)}</td>
-      <td>${t.hora_salida ? getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>'}</td>
+      <td>${formatFechaEsp(t.fecha_inicio)} ${getFormattedDateTime(t.hora_entrada)}</td>
+      <td>${t.hora_salida ? formatFechaEsp(getFormattedDate(new Date(t.hora_salida))) + ' ' + getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>'}</td>
       <td class="txt-green"><strong>${horasDisplay}</strong></td>
     `;
     tbody.appendChild(tr);
@@ -639,8 +650,8 @@ function renderHistorialAdmin() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><strong>${nombreUsuario}</strong></td>
-      <td>${getFormattedDateTime(t.hora_entrada)}</td>
-      <td>${t.hora_salida ? getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>'}</td>
+      <td>${formatFechaEsp(t.fecha_inicio)} ${getFormattedDateTime(t.hora_entrada)}</td>
+      <td>${t.hora_salida ? formatFechaEsp(getFormattedDate(new Date(t.hora_salida))) + ' ' + getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>'}</td>
       <td class="txt-green"><strong>${horasDisp}</strong></td>
       <td>
         <div class="actions-cell">
