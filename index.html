@@ -398,7 +398,7 @@
             <th>Hora Inicio</th>
             <th>Hora Salida</th>
             <th>Total Horas / Estado</th>
-            <th style="min-width: 220px;">Acciones</th>
+            <th style="min-width: 260px;">Acciones</th>
           </tr>
         </thead>
         <tbody id="tabla-asistencias"></tbody>
@@ -419,19 +419,18 @@
   </div>
 
   <div id="modal-detalles" class="modal-backdrop">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 500px;">
       <h3 id="detalle-titulo">Detalle de Turnos</h3>
-      <div id="detalle-contenido" style="max-height: 280px; overflow-y: auto; margin-bottom: 20px;"></div>
+      <div id="detalle-contenido" style="max-height: 320px; overflow-y: auto; margin-bottom: 20px;"></div>
       <button onclick="closeModals()" class="btn-action btn-gray" style="width:100%;">Cerrar</button>
     </div>
   </div>
 
-  <!-- MODAL DE EDICIÓN DIRECTA DE TURNO -->
+  <!-- MODAL DE EDICIÓN DE TURNO (INDIVIDUAL) -->
   <div id="modal-editar-turno" class="modal-backdrop">
     <div class="modal-content">
-      <h3>Editar Registro de Turno</h3>
+      <h3>Editar Sesión de Turno</h3>
       <input type="hidden" id="edit-turno-id">
-      <input type="hidden" id="edit-turno-userid">
       
       <div class="flex-row">
         <div class="form-group" style="flex:1;">
