@@ -684,7 +684,7 @@ function renderHistorialAdmin() {
     let entMs = typeof t.hora_entrada === 'number' ? t.hora_entrada : new Date(t.hora_entrada).getTime();
     let salMs = t.hora_salida ? (typeof t.hora_salida === 'number' ? t.hora_salida : new Date(t.hora_salida).getTime()) : 0;
     
-    // Suma estricta de minutos a la fecha de inicio del turno
+    // Suma de minutos a la fecha de inicio
     if (entMs && salMs && salMs > entMs) {
       grp.totalMins += (salMs - entMs) / (1000 * 60);
     } else if (t.horas_totales) {
@@ -813,25 +813,38 @@ function openAgregarHorasModal() {
     sel.innerHTML = "";
     cachedUsers.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.nombre} (${u.tipo_pago || 'Horas'})</option>`);
   }
-  document.getElementById("manual-fecha").value = getFormattedDate();
+  const hoyStr = getFormattedDate();
+  document.getElementById("manual-fecha-inicio").value = hoyStr;
+  document.getElementById("manual-fecha-fin").value = hoyStr;
   document.getElementById("modal-agregar-horas").classList.remove("hidden");
   document.getElementById("modal-agregar-horas").style.display = "flex";
 }
 
 async function guardarHorasManuales() {
   const userId = parseInt(document.getElementById("manual-user-select").value);
-  const fecha = document.getElementById("manual-fecha").value;
+  const fechaInicio = document.getElementById("manual-fecha-inicio").value;
+  const fechaFin = document.getElementById("manual-fecha-fin").value || fechaInicio;
   const hEntrada = document.getElementById("manual-entrada").value;
   const hSalida = document.getElementById("manual-salida").value;
 
-  if (!fecha || !hEntrada || !hSalida) { alert("Completa fecha y horas."); return; }
-  let tEntrada = new Date(`${fecha}T${hEntrada}:00`).getTime();
-  let tSalida = new Date(`${fecha}T${hSalida}:00`).getTime();
+  if (!fechaInicio || !hEntrada || !hSalida) { 
+    alert("Por favor completa la fecha de inicio y las horas."); 
+    return; 
+  }
+
+  let tEntrada = new Date(`${fechaInicio}T${hEntrada}:00`).getTime();
+  let tSalida = new Date(`${fechaFin}T${hSalida}:00`).getTime();
+
+  if (tSalida <= tEntrada) {
+    alert("La fecha y hora de salida debe ser posterior a la fecha y hora de entrada.");
+    return;
+  }
+
   let diffHrs = Math.max(0, (tSalida - tEntrada) / (1000 * 60 * 60));
 
   const payloadSupabase = {
     id_usuario: userId,
-    fecha_inicio: fecha,
+    fecha_inicio: fechaInicio,
     hora_entrada: tEntrada,
     hora_salida: tSalida,
     horas_totales: parseFloat(diffHrs.toFixed(4)),
