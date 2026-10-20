@@ -776,7 +776,7 @@ async function login() {
 
   if (pInput === String(user.pin).trim()) {
     currentUser = user;
-
+pinSesionTurno = pInput;
     localStorage.setItem(
       "active_user_id",
       user.id
