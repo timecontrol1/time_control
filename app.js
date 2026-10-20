@@ -93,11 +93,10 @@ function iniciarRelojEnVivo() {
 
     const horaTexto = `🇻🇪 Hora Actual: ${fecha} ${hora}`;
 
-    document.querySelectorAll("#reloj, .reloj").forEach(el => {
-      el.textContent = horaTexto;
-    });
-  };
-
+  document.querySelectorAll("#reloj-venezuela").forEach(el => {
+  el.textContent = horaTexto;
+});
+};
   actualizarReloj();
   setInterval(actualizarReloj, 1000);
 }
