@@ -843,7 +843,7 @@ function logout() {
 
   currentUser = null;
   currentShift = null;
-
+pinSesionTurno = null;
   localStorage.removeItem("active_user_id");
 
   document
