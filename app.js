@@ -79,8 +79,7 @@ function iniciarRelojEnVivo() {
     const yyyy = vzla.getFullYear();
     const mm = String(vzla.getMonth() + 1).padStart(2, "0");
     const dd = String(vzla.getDate()).padStart(2, "0");
-    const horaTexto =
-      `🇻🇪 Hora Actual: ${dd}-${mm}-${yyyy} ${getFormattedDateTime(now)}`;
+    const horaTexto = `🇻🇪 Hora Actual: ${dd}-${mm}-${yyyy} ${getFormattedDateTime( now )}`;
     document.querySelectorAll("#reloj-venezuela").forEach((el) => {
       el.innerText = horaTexto;
     });
@@ -110,38 +109,30 @@ function msTurno(valor) {
 }
 
 function mismoInstante(a, b) {
-  return Number.isFinite(msTurno(a)) &&
+  return (
+    Number.isFinite(msTurno(a)) &&
     Number.isFinite(msTurno(b)) &&
-    Math.abs(msTurno(a) - msTurno(b)) < 60000;
+    Math.abs(msTurno(a) - msTurno(b)) < 60000
+  );
 }
 
 function htmlSeguro(valor) {
   return String(valor ?? "").replace(
     /[&<>"']/g,
-    c => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    }[c])
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c])
   );
 }
 
-function copiarReportePortapapeles(
-  nombreTrabajador,
-  accion,
-  fechaEntrada,
-  horaEntrada,
-  fechaSalida = "",
-  horaSalida = "",
-  totalHorasStr = "",
-  esContinuacion = false,
-  numeroReporte = null
-) {
+function copiarReportePortapapeles( nombreTrabajador, accion, fechaEntrada, horaEntrada, fechaSalida = "", horaSalida = "", totalHorasStr = "", esContinuacion = false, numeroReporte = null ) {
   let mensaje = "";
-  let etiquetaContinuacion =
-    esContinuacion ? " (Continuación de turno)" : "";
+  let etiquetaContinuacion = esContinuacion ? " (Continuación de turno)" : "";
   let fechaEntradaEsp = formatFechaEsp(fechaEntrada);
   let horaEntradaLimpia = getFormattedDateTime(new Date(horaEntrada));
 
@@ -155,9 +146,7 @@ function copiarReportePortapapeles(
     let fechaSalidaEsp = formatFechaEsp(fechaSalida);
     let horaSalidaLimpia = getFormattedDateTime(new Date(horaSalida));
     let detalleSalidaFecha =
-      fechaSalida && fechaSalida !== fechaEntrada
-        ? ` (${fechaSalidaEsp})`
-        : "";
+      fechaSalida && fechaSalida !== fechaEntrada ? ` (${fechaSalidaEsp})` : "";
 
     mensaje =
       `🔴 *FINALIZACIÓN DE TURNO${etiquetaContinuacion}*\n` +
@@ -169,24 +158,19 @@ function copiarReportePortapapeles(
   }
 
   if (numeroReporte !== null) {
-    mensaje +=
-      `\n🧾 *ID:* ${codigoTurno(nombreTrabajador, numeroReporte)}`;
+    mensaje += `\n🧾 *ID:* ${codigoTurno(nombreTrabajador, numeroReporte)}`;
   }
 
   if (!navigator.clipboard?.writeText) {
-    window.prompt(
-      "Copia este reporte y envíalo a WhatsApp:",
-      mensaje
-    );
+    window.prompt("Copia este reporte y envíalo a WhatsApp:", mensaje);
     return;
   }
 
-  navigator.clipboard.writeText(mensaje)
+  navigator.clipboard
+    .writeText(mensaje)
     .then(() => {
       alert(
-        `¡Turno ${
-          accion === "INICIO" ? "iniciado" : "finalizado"
-        }!\n\n📋 Reporte copiado al portapapeles para WhatsApp.`
+        `¡Turno ${ accion === "INICIO" ? "iniciado" : "finalizado" }!\n\n📋 Reporte copiado al portapapeles para WhatsApp.`
       );
     })
     .catch(() => {
@@ -308,8 +292,7 @@ let canalPresencia = null;
 let conectados = new Set();
 
 const identificadorSesion =
-  globalThis.crypto?.randomUUID?.() ||
-  String(Date.now()) + Math.random();
+  globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random();
 
 function actualizarPresencia() {
   if (!canalPresencia) return;
@@ -326,8 +309,7 @@ function actualizarPresencia() {
   const el = document.getElementById("presence-status");
 
   if (el) {
-    el.textContent =
-      `🟢 Navegadores conectados: ${conectados.size} · Solo indicador informativo`;
+    el.textContent = `🟢 Navegadores conectados: ${conectados.size} · Solo indicador informativo`;
   }
 
   if (currentUser?.rol === "admin") {
@@ -339,31 +321,21 @@ async function registrarPresencia() {
   if (!supabaseClient || !currentUser) return;
 
   if (!canalPresencia) {
-    canalPresencia = supabaseClient.channel(
-      "presencia-trabajadores-v1",
-      {
-        config: {
-          presence: {
-            key: identificadorSesion
-          }
-        }
-      }
-    );
+    canalPresencia = supabaseClient.channel("presencia-trabajadores-v1", {
+      config: {
+        presence: {
+          key: identificadorSesion,
+        },
+      },
+    });
 
-    canalPresencia.on(
-      "presence",
-      { event: "sync" },
-      actualizarPresencia
-    );
+    canalPresencia.on("presence", { event: "sync" }, actualizarPresencia);
 
     await new Promise((resolve, reject) =>
       canalPresencia.subscribe((status) => {
         if (status === "SUBSCRIBED") resolve();
 
-        if (
-          status === "CHANNEL_ERROR" ||
-          status === "TIMED_OUT"
-        ) {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           reject(new Error(status));
         }
       })
@@ -404,10 +376,7 @@ function cargarTurnosLocales() {
 
 function guardarTurnosLocales() {
   try {
-    localStorage.setItem(
-      "app_turnos_locales",
-      JSON.stringify(cachedTurnos)
-    );
+    localStorage.setItem("app_turnos_locales", JSON.stringify(cachedTurnos));
   } catch (e) {}
 }
 
@@ -426,48 +395,30 @@ window.addEventListener("DOMContentLoaded", () => {
     const savedUserId = null;
 
     if (savedUserId) {
-      let found = cachedUsers.find(
-        (u) => String(u.id) === String(savedUserId)
-      );
+      let found = cachedUsers.find((u) => String(u.id) === String(savedUserId));
 
       if (found) {
         currentUser = found;
 
-        document
-          .getElementById("sec-login")
-          .classList.add("hidden");
+        document.getElementById("sec-login").classList.add("hidden");
 
         if (currentUser.rol === "admin") {
-          document
-            .getElementById("sec-admin")
-            .classList.remove("hidden");
+          document.getElementById("sec-admin").classList.remove("hidden");
 
-          initSemanaEnCursoDates(
-            "filtro-desde",
-            "filtro-hasta"
-          );
+          initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
 
           loadAdminData();
         } else {
-          document
-            .getElementById("sec-trabajador")
-            .classList.remove("hidden");
+          document.getElementById("sec-trabajador").classList.remove("hidden");
 
           document.getElementById(
             "worker-title"
           ).innerText = `Trabajador: ${currentUser.nombre}`;
 
-          document.getElementById(
-            "w-tarifa-input"
-          ).value =
-            currentUser.tarifa !== undefined
-              ? currentUser.tarifa
-              : 1.0;
+          document.getElementById("w-tarifa-input").value =
+            currentUser.tarifa !== undefined ? currentUser.tarifa : 1.0;
 
-          initSemanaEnCursoDates(
-            "w-filtro-desde",
-            "w-filtro-hasta"
-          );
+          initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
 
           loadWorkerData();
         }
@@ -489,7 +440,7 @@ function configurarRealtimeSupabase() {
         {
           event: "*",
           schema: "public",
-          table: "registros_turnos"
+          table: "registros_turnos",
         },
         () => {
           syncDataFromSupabase();
@@ -500,7 +451,7 @@ function configurarRealtimeSupabase() {
         {
           event: "*",
           schema: "public",
-          table: "usuarios"
+          table: "usuarios",
         },
         () => {
           syncDataFromSupabase();
@@ -539,20 +490,11 @@ function initMatrixEffect() {
     ctx.font = fontSize + "px monospace";
 
     for (let i = 0; i < drops.length; i++) {
-      const text = letters.charAt(
-        Math.floor(Math.random() * letters.length)
-      );
+      const text = letters.charAt(Math.floor(Math.random() * letters.length));
 
-      ctx.fillText(
-        text,
-        i * fontSize,
-        drops[i] * fontSize
-      );
+      ctx.fillText(text, i * fontSize, drops[i] * fontSize);
 
-      if (
-        drops[i] * fontSize > canvas.height &&
-        Math.random() > 0.975
-      ) {
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
         drops[i] = 0;
       }
 
@@ -563,10 +505,7 @@ function initMatrixEffect() {
   setInterval(draw, 33);
 }
 
-function initSemanaEnCursoDates(
-  inputDesdeId,
-  inputHastaId
-) {
+function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   const now = new Date();
   const vzla = getVenezuelaDate(now);
 
@@ -575,26 +514,17 @@ function initSemanaEnCursoDates(
   const date = vzla.getUTCDate();
   const dayOfWeek = vzla.getUTCDay();
 
-  const distanceToMonday =
-    dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
-  const monday = new Date(
-    Date.UTC(year, month, date + distanceToMonday)
-  );
+  const monday = new Date(Date.UTC(year, month, date + distanceToMonday));
 
-  const sunday = new Date(
-    Date.UTC(year, month, date + distanceToMonday + 6)
-  );
+  const sunday = new Date(Date.UTC(year, month, date + distanceToMonday + 6));
 
   const formatDate = (d) => {
     const yyyy = d.getUTCFullYear();
-    const mm = String(
-      d.getUTCMonth() + 1
-    ).padStart(2, "0");
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
 
-    const dd = String(
-      d.getUTCDate()
-    ).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
 
     return `${yyyy}-${mm}-${dd}`;
   };
@@ -619,11 +549,10 @@ async function syncDataFromSupabase() {
   syncEnCurso = true;
 
   try {
-    const { data: users, error: errU } =
-      await supabaseClient
-        .from("usuarios")
-        .select("*")
-        .order("id");
+    const { data: users, error: errU } = await supabaseClient
+      .from("usuarios")
+      .select("*")
+      .order("id");
 
     if (errU) throw errU;
 
@@ -631,10 +560,8 @@ async function syncDataFromSupabase() {
 
     if (currentUser) {
       currentUser =
-        cachedUsers.find(
-          (u) =>
-            String(u.id) === String(currentUser.id)
-        ) || currentUser;
+        cachedUsers.find((u) => String(u.id) === String(currentUser.id)) ||
+        currentUser;
     }
 
     let turnos = [];
@@ -646,7 +573,7 @@ async function syncDataFromSupabase() {
         .from("registros_turnos")
         .select("*")
         .order("hora_entrada", {
-          ascending: false
+          ascending: false,
         })
         .range(desde, desde + pagina - 1);
 
@@ -672,20 +599,15 @@ async function syncDataFromSupabase() {
       }
     }
 
-    const estado = document.getElementById(
-      "sync-status"
-    );
+    const estado = document.getElementById("sync-status");
 
     if (estado) {
-      estado.textContent =
-        `🟢 Sincronizado · ${new Date().toLocaleTimeString("es-VE")}`;
+      estado.textContent = `🟢 Sincronizado · ${new Date().toLocaleTimeString( "es-VE" )}`;
     }
   } catch (e) {
     console.error("Sincronización fallida:", e);
 
-    const estado = document.getElementById(
-      "sync-status"
-    );
+    const estado = document.getElementById("sync-status");
 
     if (estado) {
       estado.textContent =
@@ -697,15 +619,11 @@ async function syncDataFromSupabase() {
 }
 
 async function login() {
-  const uInput = (
-    document.getElementById("login-usuario").value || ""
-  )
+  const uInput = (document.getElementById("login-usuario").value || "")
     .trim()
     .toLowerCase();
 
-  const pInput = (
-    document.getElementById("login-pin").value || ""
-  ).trim();
+  const pInput = (document.getElementById("login-pin").value || "").trim();
 
   if (!uInput || !pInput) {
     alert("Ingresa usuario y PIN.");
@@ -720,19 +638,15 @@ async function login() {
   }
 
   try {
-    const { data: users, error } =
-      await supabaseClient
-        .from("usuarios")
-        .select("*");
+    const { data: users, error } = await supabaseClient
+      .from("usuarios")
+      .select("*");
 
     if (error) throw error;
 
     cachedUsers = users || [];
   } catch (e) {
-    alert(
-      "No se pudo verificar el usuario en Supabase: " +
-      e.message
-    );
+    alert("No se pudo verificar el usuario en Supabase: " + e.message);
     return;
   }
 
@@ -740,84 +654,48 @@ async function login() {
     (u) =>
       (u.usuario || "").toLowerCase() === uInput ||
       (u.nombre || "").toLowerCase() === uInput ||
-      (
-        (
-          uInput === "admin" ||
-          uInput === "administrador" ||
-          uInput === "angel" ||
-          uInput === "ángel"
-        ) &&
-        (
-          u.usuario === "administrador" ||
-          u.rol === "admin"
-        )
-      )
+      ((uInput === "admin" ||
+        uInput === "administrador" ||
+        uInput === "angel" ||
+        uInput === "ángel") &&
+        (u.usuario === "administrador" || u.rol === "admin"))
   );
 
   if (!user) {
-    alert(
-      "El usuario '" + uInput +
-      "' no existe en el sistema."
-    );
+    alert("El usuario '" + uInput + "' no existe en el sistema.");
     return;
   }
 
   if (pInput === String(user.pin).trim()) {
     currentUser = user;
 
-    localStorage.setItem(
-      "active_user_id",
-      user.id
-    );
+    localStorage.setItem("active_user_id", user.id);
 
-    document
-      .getElementById("sec-login")
-      .classList.add("hidden");
+    document.getElementById("sec-login").classList.add("hidden");
 
-    if (
-      user.rol === "admin" ||
-      user.usuario === "administrador"
-    ) {
-      document
-        .getElementById("sec-admin")
-        .classList.remove("hidden");
+    if (user.rol === "admin" || user.usuario === "administrador") {
+      document.getElementById("sec-admin").classList.remove("hidden");
 
-      initSemanaEnCursoDates(
-        "filtro-desde",
-        "filtro-hasta"
-      );
+      initSemanaEnCursoDates("filtro-desde", "filtro-hasta");
 
       loadAdminData();
     } else {
-      document
-        .getElementById("sec-trabajador")
-        .classList.remove("hidden");
+      document.getElementById("sec-trabajador").classList.remove("hidden");
 
       document.getElementById(
         "worker-title"
-      ).innerText =
-        `Trabajador: ${currentUser.nombre}`;
+      ).innerText = `Trabajador: ${currentUser.nombre}`;
 
-      document.getElementById(
-        "w-tarifa-input"
-      ).value =
-        currentUser.tarifa !== undefined
-          ? currentUser.tarifa
-          : 1.0;
+      document.getElementById("w-tarifa-input").value =
+        currentUser.tarifa !== undefined ? currentUser.tarifa : 1.0;
 
-      initSemanaEnCursoDates(
-        "w-filtro-desde",
-        "w-filtro-hasta"
-      );
+      initSemanaEnCursoDates("w-filtro-desde", "w-filtro-hasta");
 
       loadWorkerData();
     }
 
     registrarPresencia().catch((e) =>
-      console.warn(
-        "Presencia no disponible:",
-        e
-      )
+      console.warn("Presencia no disponible:", e)
     );
 
     syncDataFromSupabase();
@@ -834,17 +712,11 @@ function logout() {
 
   localStorage.removeItem("active_user_id");
 
-  document
-    .getElementById("sec-admin")
-    .classList.add("hidden");
+  document.getElementById("sec-admin").classList.add("hidden");
 
-  document
-    .getElementById("sec-trabajador")
-    .classList.add("hidden");
+  document.getElementById("sec-trabajador").classList.add("hidden");
 
-  document
-    .getElementById("sec-login")
-    .classList.remove("hidden");
+  document.getElementById("sec-login").classList.remove("hidden");
 }
 
 function loadWorkerData() {
@@ -853,12 +725,8 @@ function loadWorkerData() {
   currentShift =
     cachedTurnos.find(
       (t) =>
-        String(t.id_usuario) ===
-          String(currentUser.id) &&
-        (
-          t.estado === "en_turno" ||
-          !t.hora_salida
-        )
+        String(t.id_usuario) === String(currentUser.id) &&
+        (t.estado === "en_turno" || !t.hora_salida)
     ) || null;
 
   actualizarBotonesTurno(!!currentShift);
@@ -868,39 +736,22 @@ function loadWorkerData() {
 }
 
 function actualizarBotonesTurno(enTurno) {
-  const btnFichar =
-    document.getElementById("btn-fichar");
+  const btnFichar = document.getElementById("btn-fichar");
 
   if (!btnFichar) return;
 
   if (enTurno) {
     btnFichar.innerText = "■ Finalizar Turno";
 
-    btnFichar.style.setProperty(
-      "background-color",
-      "#ef4444",
-      "important"
-    );
+    btnFichar.style.setProperty("background-color", "#ef4444", "important");
 
-    btnFichar.style.setProperty(
-      "color",
-      "#ffffff",
-      "important"
-    );
+    btnFichar.style.setProperty("color", "#ffffff", "important");
   } else {
     btnFichar.innerText = "▶ Iniciar Turno";
 
-    btnFichar.style.setProperty(
-      "background-color",
-      "#10b981",
-      "important"
-    );
+    btnFichar.style.setProperty("background-color", "#10b981", "important");
 
-    btnFichar.style.setProperty(
-      "color",
-      "#022c22",
-      "important"
-    );
+    btnFichar.style.setProperty("color", "#022c22", "important");
   }
 }
 
@@ -909,20 +760,15 @@ function confirmarToggleTurno() {
 
   const enTurno = !!currentShift;
 
-  document.getElementById(
-    "confirm-title"
-  ).innerText = enTurno
+  document.getElementById("confirm-title").innerText = enTurno
     ? "¿Finalizar Turno?"
     : "¿Iniciar Turno?";
 
-  document.getElementById(
-    "confirm-text"
-  ).innerText = enTurno
+  document.getElementById("confirm-text").innerText = enTurno
     ? "¿Estás seguro que deseas finalizar tu turno?"
     : "¿Estás seguro que deseas iniciar un nuevo turno de trabajo?";
 
-  const modalConfirm =
-    document.getElementById("modal-confirm");
+  const modalConfirm = document.getElementById("modal-confirm");
 
   if (modalConfirm) {
     modalConfirm.classList.remove("hidden");
@@ -959,9 +805,7 @@ async function ejecutarToggleTurno() {
     if (errA) throw errA;
 
     if (abiertos.length > 1) {
-      throw new Error(
-        "Hay varios turnos abiertos. Contacta al administrador."
-      );
+      throw new Error("Hay varios turnos abiertos. Contacta al administrador.");
     }
 
     const turno = abiertos[0] || null;
@@ -983,7 +827,7 @@ async function ejecutarToggleTurno() {
           fecha_inicio: fecha,
           hora_entrada: ahora,
           estado: "en_turno",
-          origen: "sistema"
+          origen: "sistema",
         })
         .select()
         .single();
@@ -1004,25 +848,30 @@ async function ejecutarToggleTurno() {
         data.id
       );
     } else {
-      const hrs = Math.max(
-        0,
-        (ahora - Number(turno.hora_entrada)) / 3600000
-      );
+      const hrs = Math.max(0, (ahora - Number(turno.hora_entrada)) / 3600000);
 
       const { data, error } = await supabaseClient
         .from("registros_turnos")
         .update({
           hora_salida: ahora,
           horas_totales: Number(hrs.toFixed(4)),
-          estado: "completado"
+          estado: "completado",
         })
         .eq("id", turno.id)
         .is("hora_salida", null)
-        .select()
-        .single();
+        .select();
 
-      if (error || !data) {
-        throw error || new Error("No se confirmó la salida.");
+      // Una actualización puede devolver cero filas si las políticas RLS
+      // impiden verla, o si otro dispositivo cerró el turno antes.
+      // Evitar .single() permite mostrar una causa útil sin error PGRST116.
+      if (error) throw error;
+      if (!data || data.length !== 1) {
+        throw new Error(
+          "La salida no devolvió exactamente un turno confirmado. " +
+            "Comprueba los permisos RLS de registros_turnos y si el turno " +
+            "ya fue cerrado desde otro dispositivo. No vuelvas a fichar " +
+            "hasta revisar el historial."
+        );
       }
 
       await syncDataFromSupabase();
@@ -1052,8 +901,8 @@ async function ejecutarToggleTurno() {
   } catch (e) {
     alert(
       "⚠️ No se pudo confirmar el turno en Supabase.\n" +
-      e.message +
-      "\nConserva la hora y avisa al administrador."
+        e.message +
+        "\nConserva la hora y avisa al administrador."
     );
 
     await syncDataFromSupabase();
@@ -1099,9 +948,7 @@ function renderTablaTrabajador() {
 
   filtrados.forEach((t) => {
     const entMs = msTurno(t.hora_entrada);
-    const salMs = t.hora_salida
-      ? msTurno(t.hora_salida)
-      : 0;
+    const salMs = t.hora_salida ? msTurno(t.hora_salida) : 0;
 
     let minsTurno = 0;
 
@@ -1126,29 +973,7 @@ function renderTablaTrabajador() {
 
     const tr = document.createElement("tr");
 
-    tr.innerHTML = `
-      <td>
-        <strong class="txt-green">${htmlSeguro(codigo)}</strong>
-        <div>
-          ${formatFechaEsp(t.fecha_inicio)}
-          ${getFormattedDateTime(t.hora_entrada)}
-        </div>
-      </td>
-      <td>
-        ${
-          t.hora_salida
-            ? formatFechaEsp(
-                getFormattedDate(new Date(msTurno(t.hora_salida)))
-              ) +
-              " " +
-              getFormattedDateTime(t.hora_salida)
-            : '<span class="txt-green">Activo</span>'
-        }
-      </td>
-      <td class="txt-green">
-        <strong>${horasDisplay}</strong>
-      </td>
-    `;
+    tr.innerHTML = ` <td> <strong class="txt-green">${htmlSeguro(codigo)}</strong> <div> ${formatFechaEsp(t.fecha_inicio)} ${getFormattedDateTime(t.hora_entrada)} </div> </td> <td> ${ t.hora_salida ? formatFechaEsp( getFormattedDate(new Date(msTurno(t.hora_salida))) ) + " " + getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>' } </td> <td class="txt-green"> <strong>${horasDisplay}</strong> </td> `;
 
     tbody.appendChild(tr);
   });
@@ -1195,9 +1020,7 @@ async function actualizarTarifaIndividualTrabajador(nuevaTarifa) {
 function calcularSimuladorCobro() {
   const inputTarifa = document.getElementById("w-tarifa-input");
   const labelTotal = document.getElementById("w-total-estimado");
-  const labelDetalle = document.getElementById(
-    "w-detalle-horas-estimadas"
-  );
+  const labelDetalle = document.getElementById("w-detalle-horas-estimadas");
   const labelPeriodo = document.getElementById("w-total-periodo");
 
   if (!inputTarifa || !labelTotal || !labelPeriodo) return;
@@ -1234,15 +1057,11 @@ function renderTablaUsuariosAdmin() {
   const d1 = desde ? new Date(desde) : new Date();
   const d2 = hasta ? new Date(hasta) : new Date();
 
-  const semanas = Math.max(
-    1,
-    (Math.round((d2 - d1) / 86400000) + 1) / 7
-  );
+  const semanas = Math.max(1, (Math.round((d2 - d1) / 86400000) + 1) / 7);
 
   const turnosFiltrados = cachedTurnos.filter(
     (t) =>
-      (!desde || t.fecha_inicio >= desde) &&
-      (!hasta || t.fecha_inicio <= hasta)
+      (!desde || t.fecha_inicio >= desde) && (!hasta || t.fecha_inicio <= hasta)
   );
 
   const tbody = document.getElementById("tabla-usuarios");
@@ -1251,8 +1070,7 @@ function renderTablaUsuariosAdmin() {
   tbody.innerHTML = "";
 
   cachedUsers.forEach((u, index) => {
-    const tarifaVal =
-      u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
+    const tarifaVal = u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
 
     const tipoPago = (u.tipo_pago || "Horas").trim();
 
@@ -1262,16 +1080,11 @@ function renderTablaUsuariosAdmin() {
       .filter((t) => String(t.id_usuario) === String(u.id))
       .forEach((t) => {
         const entMs = msTurno(t.hora_entrada);
-        const salMs = t.hora_salida
-          ? msTurno(t.hora_salida)
-          : 0;
+        const salMs = t.hora_salida ? msTurno(t.hora_salida) : 0;
 
         if (entMs && salMs && salMs > entMs) {
           totalMinsUser += (salMs - entMs) / 60000;
-        } else if (
-          t.estado === "en_turno" ||
-          !t.hora_salida
-        ) {
+        } else if (t.estado === "en_turno" || !t.hora_salida) {
           if (Date.now() > entMs) {
             totalMinsUser += (Date.now() - entMs) / 60000;
           }
@@ -1295,78 +1108,7 @@ function renderTablaUsuariosAdmin() {
 
     const tr = document.createElement("tr");
 
-    tr.innerHTML = `
-      <td>
-        <strong>${htmlSeguro(u.nombre)}</strong>
-        <div style="font-size:.72rem;color:${
-          conectados.has(String(u.id))
-            ? "#10b981"
-            : "#94a3b8"
-        }">
-          ${
-            conectados.has(String(u.id))
-              ? "● Conectado"
-              : "○ Sin conexión detectada"
-          }
-        </div>
-      </td>
-
-      <td>
-        <span id="${pinId}" data-pin="${htmlSeguro(u.pin)}">••••</span>
-        <button
-          id="${btnId}"
-          onclick="togglePinVisibility('${pinId}', '${btnId}')"
-          class="btn-icon"
-          style="margin-left:5px;"
-        >👁️</button>
-      </td>
-
-      <td>${htmlSeguro(tipoPago)}</td>
-
-      <td>
-        <input
-          type="number"
-          id="${inputTarifaId}"
-          value="${tarifaVal.toFixed(2)}"
-          step="0.1"
-          style="width:80px;padding:4px;"
-          onchange="actualizarTarifaUsuarioAdmin(${u.id},this.value)"
-        >
-      </td>
-
-      <td>${htmlSeguro(u.cargo || "Operaciones")}</td>
-
-      <td class="txt-green">
-        <strong>
-          ${
-            tipoPago === "Fijo"
-              ? "-"
-              : totalHoras < 1
-              ? Math.round(totalMinsUser) + " min"
-              : totalHoras.toFixed(2) + " hrs"
-          }
-        </strong>
-      </td>
-
-      <td class="txt-green">
-        <strong>$${totalPagar.toFixed(2)}</strong>
-      </td>
-
-      <td>
-        <button
-          onclick="openEditarUsuarioModal(${u.id})"
-          class="btn-icon"
-        >✏️</button>
-
-        ${
-          u.usuario !== "admin" &&
-          u.usuario !== "administrador"
-            ? `<button onclick="borrarUsuario(${u.id})"
-                class="btn-icon">🗑️</button>`
-            : ""
-        }
-      </td>
-    `;
+    tr.innerHTML = ` <td> <strong>${htmlSeguro(u.nombre)}</strong> <div style="font-size:.72rem;color:${ conectados.has(String(u.id)) ? "#10b981" : "#94a3b8" }"> ${ conectados.has(String(u.id)) ? "● Conectado" : "○ Sin conexión detectada" } </div> </td> <td> <span id="${pinId}" data-pin="${htmlSeguro(u.pin)}">••••</span> <button id="${btnId}" onclick="togglePinVisibility('${pinId}', '${btnId}')" class="btn-icon" style="margin-left:5px;" >👁️</button> </td> <td>${htmlSeguro(tipoPago)}</td> <td> <input type="number" id="${inputTarifaId}" value="${tarifaVal.toFixed(2)}" step="0.1" style="width:80px;padding:4px;" onchange="actualizarTarifaUsuarioAdmin(${u.id},this.value)" > </td> <td>${htmlSeguro(u.cargo || "Operaciones")}</td> <td class="txt-green"> <strong> ${ tipoPago === "Fijo" ? "-" : totalHoras < 1 ? Math.round(totalMinsUser) + " min" : totalHoras.toFixed(2) + " hrs" } </strong> </td> <td class="txt-green"> <strong>$${totalPagar.toFixed(2)}</strong> </td> <td> <button onclick="openEditarUsuarioModal(${u.id})" class="btn-icon" >✏️</button> ${ u.usuario !== "admin" && u.usuario !== "administrador" ? `<button onclick="borrarUsuario(${u.id})" class="btn-icon">🗑️</button>` : "" } </td> `;
 
     tbody.appendChild(tr);
   });
@@ -1400,13 +1142,7 @@ function renderHistorialAdmin() {
   tbody.innerHTML = "";
 
   if (turnosFiltrados.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="5" style="text-align:center;">
-          No hay registros en este rango de fechas.
-        </td>
-      </tr>
-    `;
+    tbody.innerHTML = ` <tr> <td colspan="5" style="text-align:center;"> No hay registros en este rango de fechas. </td> </tr> `;
     return;
   }
 
@@ -1415,29 +1151,19 @@ function renderHistorialAdmin() {
       (u) => String(u.id) === String(t.id_usuario)
     );
 
-    const nombreUsuario = userObj
-      ? userObj.nombre
-      : "Desconocido";
+    const nombreUsuario = userObj ? userObj.nombre : "Desconocido";
 
     const codigo = codigoTurno(nombreUsuario, t.id);
 
     const entMs = msTurno(t.hora_entrada);
-    const salMs = t.hora_salida
-      ? msTurno(t.hora_salida)
-      : 0;
+    const salMs = t.hora_salida ? msTurno(t.hora_salida) : 0;
 
     let mins = 0;
 
     if (entMs && salMs && salMs > entMs) {
       mins = Math.round((salMs - entMs) / 60000);
-    } else if (
-      t.estado === "en_turno" ||
-      !t.hora_salida
-    ) {
-      mins = Math.max(
-        0,
-        Math.round((Date.now() - entMs) / 60000)
-      );
+    } else if (t.estado === "en_turno" || !t.hora_salida) {
+      mins = Math.max(0, Math.round((Date.now() - entMs) / 60000));
     } else if (t.horas_totales) {
       mins = Math.round(t.horas_totales * 60);
     }
@@ -1451,71 +1177,19 @@ function renderHistorialAdmin() {
 
     const botonesForzar =
       t.estado === "en_turno" || !t.hora_salida
-        ? `<button
-             onclick="forzarSalida(${t.id})"
-             class="btn-action btn-red"
-             style="padding:4px 8px;font-size:.75rem;margin-right:5px;"
-           >Forzar Salida</button>`
+        ? `<button onclick="forzarSalida(${t.id})" class="btn-action btn-red" style="padding:4px 8px;font-size:.75rem;margin-right:5px;" >Forzar Salida</button>`
         : "";
 
     const tr = document.createElement("tr");
 
-    tr.innerHTML = `
-      <td>
-        <strong>${htmlSeguro(nombreUsuario)}</strong>
-        <div class="txt-green">
-          <strong>${htmlSeguro(codigo)}</strong>
-        </div>
-      </td>
-
-      <td>
-        ${formatFechaEsp(t.fecha_inicio)}
-        ${getFormattedDateTime(t.hora_entrada)}
-      </td>
-
-      <td>
-        ${
-          t.hora_salida
-            ? formatFechaEsp(
-                getFormattedDate(new Date(msTurno(t.hora_salida)))
-              ) +
-              " " +
-              getFormattedDateTime(t.hora_salida)
-            : '<span class="txt-green">Activo</span>'
-        }
-      </td>
-
-      <td class="txt-green">
-        <strong>${horasDisp}</strong>
-      </td>
-
-      <td>
-        <div class="actions-cell">
-          ${botonesForzar}
-
-          <button
-            onclick="window.abrirModalEditarTurno(${t.id})"
-            class="btn-action btn-blue"
-            style="padding:6px 12px;font-size:.85rem;"
-          >✏️ Editar</button>
-
-          <button
-            onclick="borrarTurnoUnico(${t.id})"
-            class="btn-action btn-red"
-            style="padding:6px 12px;font-size:.85rem;"
-          >🗑️ Borrar</button>
-        </div>
-      </td>
-    `;
+    tr.innerHTML = ` <td> <strong>${htmlSeguro(nombreUsuario)}</strong> <div class="txt-green"> <strong>${htmlSeguro(codigo)}</strong> </div> </td> <td> ${formatFechaEsp(t.fecha_inicio)} ${getFormattedDateTime(t.hora_entrada)} </td> <td> ${ t.hora_salida ? formatFechaEsp( getFormattedDate(new Date(msTurno(t.hora_salida))) ) + " " + getFormattedDateTime(t.hora_salida) : '<span class="txt-green">Activo</span>' } </td> <td class="txt-green"> <strong>${horasDisp}</strong> </td> <td> <div class="actions-cell"> ${botonesForzar} <button onclick="window.abrirModalEditarTurno(${t.id})" class="btn-action btn-blue" style="padding:6px 12px;font-size:.85rem;" >✏️ Editar</button> <button onclick="borrarTurnoUnico(${t.id})" class="btn-action btn-red" style="padding:6px 12px;font-size:.85rem;" >🗑️ Borrar</button> </div> </td> `;
 
     tbody.appendChild(tr);
   });
 }
 
 window.abrirModalEditarTurno = function (idTurno) {
-  let t = cachedTurnos.find(
-    (x) => String(x.id) === String(idTurno)
-  );
+  let t = cachedTurnos.find((x) => String(x.id) === String(idTurno));
   if (!t) return;
 
   const userObj = cachedUsers.find(
@@ -1528,10 +1202,9 @@ window.abrirModalEditarTurno = function (idTurno) {
     nombreTrabajador;
   document.getElementById("edit-turno-entrada-datetime").value =
     getDateTimeLocalString(t.hora_entrada);
-  document.getElementById("edit-turno-salida-datetime").value =
-    t.hora_salida
-      ? getDateTimeLocalString(t.hora_salida)
-      : getDateTimeLocalString(t.hora_entrada);
+  document.getElementById("edit-turno-salida-datetime").value = t.hora_salida
+    ? getDateTimeLocalString(t.hora_salida)
+    : getDateTimeLocalString(t.hora_entrada);
 
   const modalEdit = document.getElementById("modal-editar-turno");
   if (modalEdit) {
@@ -1553,8 +1226,7 @@ async function guardarEdicionTurno() {
   const valEntrada = document.getElementById(
     "edit-turno-entrada-datetime"
   ).value;
-  const valSalida =
-    document.getElementById("edit-turno-salida-datetime").value;
+  const valSalida = document.getElementById("edit-turno-salida-datetime").value;
 
   if (!valEntrada || !valSalida) {
     alert("Por favor completa las fechas y horas de entrada y salida.");
@@ -1569,9 +1241,11 @@ async function guardarEdicionTurno() {
   const tEntrada = fechaHoraVenezuelaMs(fechaEntrada, horaEntrada);
   const tSalida = fechaHoraVenezuelaMs(fechaSalida, horaSalida);
 
-  if (!Number.isFinite(tEntrada) ||
-      !Number.isFinite(tSalida) ||
-      tSalida <= tEntrada) {
+  if (
+    !Number.isFinite(tEntrada) ||
+    !Number.isFinite(tSalida) ||
+    tSalida <= tEntrada
+  ) {
     alert("La salida debe ser posterior a la entrada.");
     return;
   }
@@ -1591,7 +1265,7 @@ async function guardarEdicionTurno() {
         hora_entrada: tEntrada,
         hora_salida: tSalida,
         horas_totales: Number(diffHrs.toFixed(4)),
-        estado: "completado"
+        estado: "completado",
       })
       .eq("id", idTurno);
 
@@ -1631,9 +1305,7 @@ async function borrarTurnoUnico(idTurno) {
 async function forzarSalida(idTurno) {
   if (!confirm("¿Forzar salida de este turno activo?")) return;
 
-  const t = cachedTurnos.find(
-    (x) => String(x.id) === String(idTurno)
-  );
+  const t = cachedTurnos.find((x) => String(x.id) === String(idTurno));
 
   if (!t || t.hora_salida) {
     alert("El turno ya está cerrado o no existe.");
@@ -1655,15 +1327,20 @@ async function forzarSalida(idTurno) {
       .update({
         hora_salida: ahora,
         horas_totales: Number(horas.toFixed(4)),
-        estado: "completado"
+        estado: "completado",
       })
       .eq("id", idTurno)
       .is("hora_salida", null)
-      .select()
-      .single();
+      .select();
 
-    if (error || !data) {
-      throw error || new Error("No se confirmó la salida.");
+    if (error) throw error;
+    if (!data || data.length !== 1) {
+      throw new Error(
+        "Supabase no confirmó la actualización (" +
+          (data?.length || 0) +
+          " filas). Revisa las políticas RLS UPDATE/SELECT de registros_turnos " +
+          "y que el turno siga abierto. No se ha confirmado el cierre."
+      );
     }
 
     await syncDataFromSupabase();
@@ -1678,17 +1355,14 @@ function togglePinVisibility(id, btnId) {
   const btn = document.getElementById(btnId);
 
   if (span && span.dataset.pin) {
-    span.textContent =
-      span.textContent === "••••" ? span.dataset.pin : "••••";
+    span.textContent = span.textContent === "••••" ? span.dataset.pin : "••••";
 
-    btn.textContent =
-      span.textContent === "••••" ? "👁️" : "👁️🗨️";
+    btn.textContent = span.textContent === "••••" ? "👁️" : "👁️🗨️";
   }
 }
 
 function openNuevoUsuarioModal() {
-  document.getElementById("modal-user-title").innerText =
-    "Nuevo Trabajador";
+  document.getElementById("modal-user-title").innerText = "Nuevo Trabajador";
 
   document.getElementById("edit-user-id").value = "";
   document.getElementById("edit-user-nombre").value = "";
@@ -1703,9 +1377,7 @@ function openNuevoUsuarioModal() {
 }
 
 function openEditarUsuarioModal(id) {
-  const user = cachedUsers.find(
-    (u) => String(u.id) === String(id)
-  );
+  const user = cachedUsers.find((u) => String(u.id) === String(id));
   if (!user) return;
 
   if (user.usuario === "administrador" || user.rol === "admin") {
@@ -1719,14 +1391,12 @@ function openEditarUsuarioModal(id) {
   document.getElementById("edit-user-id").value = user.id;
   document.getElementById("edit-user-nombre").value = user.nombre;
   document.getElementById("edit-user-pin").value = user.pin;
-  document.getElementById("edit-user-tipo").value =
-    user.tipo_pago || "Horas";
+  document.getElementById("edit-user-tipo").value = user.tipo_pago || "Horas";
   document.getElementById("edit-user-tarifa").value =
     user.tarifa !== undefined ? user.tarifa : 1.0;
   document.getElementById("edit-user-cargo").value =
     user.cargo || "Operaciones";
-  document.getElementById("edit-user-rol").value =
-    user.rol || "trabajador";
+  document.getElementById("edit-user-rol").value = user.rol || "trabajador";
 
   document.getElementById("modal-usuario").classList.remove("hidden");
   document.getElementById("modal-usuario").style.display = "flex";
@@ -1738,14 +1408,11 @@ async function guardarUsuario() {
     document.getElementById("edit-user-nombre").value || ""
   ).trim();
 
-  const pin = (
-    document.getElementById("edit-user-pin").value || ""
-  ).trim();
+  const pin = (document.getElementById("edit-user-pin").value || "").trim();
 
   const tipo_pago = document.getElementById("edit-user-tipo").value;
-  const tarifa = parseFloat(
-    document.getElementById("edit-user-tarifa").value
-  ) || 1.0;
+  const tarifa =
+    parseFloat(document.getElementById("edit-user-tarifa").value) || 1.0;
 
   const cargo = document.getElementById("edit-user-cargo").value;
   const rol = document.getElementById("edit-user-rol").value;
@@ -1768,7 +1435,7 @@ async function guardarUsuario() {
     tipo_pago,
     tarifa,
     cargo,
-    rol
+    rol,
   };
 
   try {
@@ -1780,9 +1447,7 @@ async function guardarUsuario() {
         .update(payload)
         .eq("id", id);
     } else {
-      resultado = await supabaseClient
-        .from("usuarios")
-        .insert([payload]);
+      resultado = await supabaseClient.from("usuarios").insert([payload]);
     }
 
     if (resultado.error) throw resultado.error;
@@ -1796,14 +1461,9 @@ async function guardarUsuario() {
 }
 
 async function borrarUsuario(id) {
-  const user = cachedUsers.find(
-    (u) => String(u.id) === String(id)
-  );
+  const user = cachedUsers.find((u) => String(u.id) === String(id));
 
-  if (user && (
-    user.usuario === "administrador" ||
-    user.rol === "admin"
-  )) {
+  if (user && (user.usuario === "administrador" || user.rol === "admin")) {
     alert("No se puede eliminar al administrador principal.");
     return;
   }
@@ -1839,8 +1499,7 @@ function openAgregarHorasModal() {
     cachedUsers.forEach((u) => {
       const option = document.createElement("option");
       option.value = u.id;
-      option.textContent =
-        `${u.nombre} (${u.tipo_pago || "Horas"})`;
+      option.textContent = `${u.nombre} (${u.tipo_pago || "Horas"})`;
       sel.appendChild(option);
     });
   }
@@ -1850,32 +1509,22 @@ function openAgregarHorasModal() {
   document.getElementById("manual-fecha-inicio").value = hoyStr;
   document.getElementById("manual-fecha-fin").value = hoyStr;
 
-  document
-    .getElementById("modal-agregar-horas")
-    .classList.remove("hidden");
+  document.getElementById("modal-agregar-horas").classList.remove("hidden");
 
-  document.getElementById(
-    "modal-agregar-horas"
-  ).style.display = "flex";
+  document.getElementById("modal-agregar-horas").style.display = "flex";
 }
 
 async function guardarHorasManuales() {
-  const userId = parseInt(
-    document.getElementById("manual-user-select").value
-  );
+  const userId = parseInt(document.getElementById("manual-user-select").value);
 
-  const fechaInicio =
-    document.getElementById("manual-fecha-inicio").value;
+  const fechaInicio = document.getElementById("manual-fecha-inicio").value;
 
   const fechaFin =
-    document.getElementById("manual-fecha-fin").value ||
-    fechaInicio;
+    document.getElementById("manual-fecha-fin").value || fechaInicio;
 
-  const hEntrada =
-    document.getElementById("manual-entrada").value;
+  const hEntrada = document.getElementById("manual-entrada").value;
 
-  const hSalida =
-    document.getElementById("manual-salida").value;
+  const hSalida = document.getElementById("manual-salida").value;
 
   if (!fechaInicio || !hEntrada || !hSalida) {
     alert("Completa la fecha y las horas.");
@@ -1885,9 +1534,11 @@ async function guardarHorasManuales() {
   const tEntrada = fechaHoraVenezuelaMs(fechaInicio, hEntrada);
   const tSalida = fechaHoraVenezuelaMs(fechaFin, hSalida);
 
-  if (!Number.isFinite(tEntrada) ||
-      !Number.isFinite(tSalida) ||
-      tSalida <= tEntrada) {
+  if (
+    !Number.isFinite(tEntrada) ||
+    !Number.isFinite(tSalida) ||
+    tSalida <= tEntrada
+  ) {
     alert("La salida debe ser posterior a la entrada.");
     return;
   }
@@ -1900,17 +1551,17 @@ async function guardarHorasManuales() {
   }
 
   try {
-    const { error } = await supabaseClient
-      .from("registros_turnos")
-      .insert([{
+    const { error } = await supabaseClient.from("registros_turnos").insert([
+      {
         id_usuario: userId,
         fecha_inicio: fechaInicio,
         hora_entrada: tEntrada,
         hora_salida: tSalida,
         horas_totales: Number(diffHrs.toFixed(4)),
         estado: "completado",
-        origen: "manual"
-      }]);
+        origen: "manual",
+      },
+    ]);
 
     if (error) throw error;
 
@@ -1944,9 +1595,7 @@ async function actualizarTarifaUsuarioAdmin(userId, nuevaTarifa) {
 
     if (error) throw error;
 
-    const user = cachedUsers.find(
-      (u) => String(u.id) === String(userId)
-    );
+    const user = cachedUsers.find((u) => String(u.id) === String(userId));
 
     if (user) user.tarifa = val;
 
@@ -1960,31 +1609,22 @@ function calcularNominaPeriodo(desde, hasta) {
   const d1 = new Date(desde);
   const d2 = new Date(hasta);
 
-  const semanas = Math.max(
-    1,
-    (Math.round((d2 - d1) / 86400000) + 1) / 7
-  );
+  const semanas = Math.max(1, (Math.round((d2 - d1) / 86400000) + 1) / 7);
 
   const turnos = cachedTurnos.filter(
-    (t) =>
-      t.fecha_inicio >= desde &&
-      t.fecha_inicio <= hasta
+    (t) => t.fecha_inicio >= desde && t.fecha_inicio <= hasta
   );
 
   let granTotal = 0;
 
   const filas = cachedUsers.map((u) => {
-    const propios = turnos.filter(
-      (t) => String(t.id_usuario) === String(u.id)
-    );
+    const propios = turnos.filter((t) => String(t.id_usuario) === String(u.id));
 
     let minutos = 0;
 
     propios.forEach((t) => {
       const entrada = msTurno(t.hora_entrada);
-      const salida = t.hora_salida
-        ? msTurno(t.hora_salida)
-        : NaN;
+      const salida = t.hora_salida ? msTurno(t.hora_salida) : NaN;
 
       if (
         Number.isFinite(entrada) &&
@@ -1997,10 +1637,7 @@ function calcularNominaPeriodo(desde, hasta) {
         Number.isFinite(entrada) &&
         t.origen !== "whatsapp"
       ) {
-        minutos += Math.max(
-          0,
-          (Date.now() - entrada) / 60000
-        );
+        minutos += Math.max(0, (Date.now() - entrada) / 60000);
       } else if (t.hora_salida && t.horas_totales) {
         minutos += Number(t.horas_totales) * 60;
       }
@@ -2024,7 +1661,7 @@ function calcularNominaPeriodo(desde, hasta) {
       tipo,
       horas,
       tarifa,
-      monto
+      monto,
     };
   });
 
@@ -2040,56 +1677,21 @@ function abrirResumenPagoModal() {
     return;
   }
 
-  const { filas, granTotal } =
-    calcularNominaPeriodo(desde, hasta);
+  const { filas, granTotal } = calcularNominaPeriodo(desde, hasta);
 
   document.getElementById(
     "resumen-rango-fechas"
-  ).innerText =
-    `Período del ${formatFechaEsp(desde)} al ${formatFechaEsp(hasta)}`;
+  ).innerText = `Período del ${formatFechaEsp(desde)} al ${formatFechaEsp( hasta )}`;
 
-  let html = `
-    <table style="width:100%;font-size:.85rem;">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Tipo</th>
-          <th>Horas</th>
-          <th>Tarifa</th>
-          <th>Monto</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+  let html = ` <table style="width:100%;font-size:.85rem;"> <thead> <tr> <th>Nombre</th> <th>Tipo</th> <th>Horas</th> <th>Tarifa</th> <th>Monto</th> </tr> </thead> <tbody> `;
 
   filas.forEach((f) => {
-    html += `
-      <tr>
-        <td>${htmlSeguro(f.nombre)}</td>
-        <td>${htmlSeguro(f.tipo)}</td>
-        <td>${f.tipo === "Fijo" ? "-" : f.horas.toFixed(2)}</td>
-        <td>$${f.tarifa.toFixed(2)}</td>
-        <td><strong>$${f.monto.toFixed(2)}</strong></td>
-      </tr>
-    `;
+    html += ` <tr> <td>${htmlSeguro(f.nombre)}</td> <td>${htmlSeguro(f.tipo)}</td> <td>${f.tipo === "Fijo" ? "-" : f.horas.toFixed(2)}</td> <td>$${f.tarifa.toFixed(2)}</td> <td><strong>$${f.monto.toFixed(2)}</strong></td> </tr> `;
   });
 
-  html += `
-      </tbody>
-    </table>
-    <div style="margin-top:15px;text-align:right;">
-      <strong>
-        Total a pagar:
-        <span class="txt-green">
-          $${granTotal.toFixed(2)}
-        </span>
-      </strong>
-    </div>
-  `;
+  html += ` </tbody> </table> <div style="margin-top:15px;text-align:right;"> <strong> Total a pagar: <span class="txt-green"> $${granTotal.toFixed(2)} </span> </strong> </div> `;
 
-  document.getElementById(
-    "resumen-pago-contenido"
-  ).innerHTML = html;
+  document.getElementById("resumen-pago-contenido").innerHTML = html;
 
   const modal = document.getElementById("modal-resumen-pago");
 
@@ -2106,8 +1708,7 @@ function copiarResumenPago() {
     return;
   }
 
-  const { filas, granTotal } =
-    calcularNominaPeriodo(desde, hasta);
+  const { filas, granTotal } = calcularNominaPeriodo(desde, hasta);
 
   let texto =
     `📊 *REPORTE DE NÓMINA*\n` +
@@ -2116,21 +1717,16 @@ function copiarResumenPago() {
 
   filas.forEach((f) => {
     const detalle =
-      f.tipo === "Fijo"
-        ? "Sueldo fijo"
-        : `${f.horas.toFixed(2)} hrs`;
+      f.tipo === "Fijo" ? "Sueldo fijo" : `${f.horas.toFixed(2)} hrs`;
 
-    texto +=
-      `• *${f.nombre}* (${detalle}): ` +
-      `*$${f.monto.toFixed(2)}*\n`;
+    texto += `• *${f.nombre}* (${detalle}): ` + `*$${f.monto.toFixed(2)}*\n`;
   });
 
-  texto +=
-    `\n💰 *Total a pagar:* ` +
-    `*$${granTotal.toFixed(2)}*`;
+  texto += `\n💰 *Total a pagar:* ` + `*$${granTotal.toFixed(2)}*`;
 
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(texto)
+    navigator.clipboard
+      .writeText(texto)
       .then(() => alert("Reporte de nómina copiado."))
       .catch(() => window.prompt("Copia el reporte:", texto));
   } else {
@@ -2139,9 +1735,7 @@ function copiarResumenPago() {
 }
 
 function openConfigTarifasModal() {
-  const modal = document.getElementById(
-    "modal-config-tarifas"
-  );
+  const modal = document.getElementById("modal-config-tarifas");
 
   modal.classList.remove("hidden");
   modal.style.display = "flex";
@@ -2197,17 +1791,11 @@ function openConfigPinModal() {
 async function guardarNuevoPinSeguro() {
   if (!currentUser || !supabaseClient) return;
 
-  const actual = document.getElementById(
-    "pin-actual-input"
-  ).value.trim();
+  const actual = document.getElementById("pin-actual-input").value.trim();
 
-  const nuevo = document.getElementById(
-    "pin-nuevo-input"
-  ).value.trim();
+  const nuevo = document.getElementById("pin-nuevo-input").value.trim();
 
-  const confirmar = document.getElementById(
-    "pin-confirmar-input"
-  ).value.trim();
+  const confirmar = document.getElementById("pin-confirmar-input").value.trim();
 
   if (actual !== String(currentUser.pin).trim()) {
     alert("El PIN actual es incorrecto.");
@@ -2254,9 +1842,7 @@ function abrirImportacionWhatsApp() {
     return;
   }
 
-  const modal = document.getElementById(
-    "modal-importar-whatsapp"
-  );
+  const modal = document.getElementById("modal-importar-whatsapp");
 
   if (!modal) {
     alert("Falta el formulario de importación en el HTML.");
@@ -2270,9 +1856,7 @@ function abrirImportacionWhatsApp() {
 function horaWhatsApp(valor) {
   const texto = String(valor || "").trim();
 
-  const m = texto.match(
-    /(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?/i
-  );
+  const m = texto.match(/(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?/i);
 
   if (!m) return null;
 
@@ -2284,29 +1868,23 @@ function horaWhatsApp(valor) {
   if (m[3]) {
     if (hora < 1 || hora > 12) return null;
 
-    hora =
-      (hora % 12) +
-      (m[3].toLowerCase() === "p" ? 12 : 0);
+    hora = (hora % 12) + (m[3].toLowerCase() === "p" ? 12 : 0);
   }
 
-  return (
-    String(hora).padStart(2, "0") +
-    ":" +
-    String(minuto).padStart(2, "0")
-  );
+  return String(hora).padStart(2, "0") + ":" + String(minuto).padStart(2, "0");
 }
 
 function extraerCampo(txt, nombres) {
   const re = new RegExp(
     "(?:^|\\n)\\s*(?:[^\\w\\n]*\\s*)?" +
-    "(?:" + nombres + ")" +
-    "\\s*:\\s*\\*?\\s*([^\\n\\r]+)",
+      "(?:" +
+      nombres +
+      ")" +
+      "\\s*:\\s*\\*?\\s*([^\\n\\r]+)",
     "im"
   );
 
-  return (
-    String(txt).match(re)?.[1] || ""
-  ).replace(/\*/g, "").trim();
+  return (String(txt).match(re)?.[1] || "").replace(/\*/g, "").trim();
 }
 
 function normalizarNombre(valor) {
@@ -2323,78 +1901,52 @@ function analizarTextoWhatsApp(texto) {
       /(?=🟢\s*\*?(?:INICIO|CONTINUACI[ÓO]N) DE TURNO|🔴\s*\*?FINALIZACI[ÓO]N DE TURNO|(?:^|\n)\s*\*?(?:INICIO|CONTINUACI[ÓO]N|FINALIZACI[ÓO]N) DE TURNO)/i
     )
     .map((x) => x.trim())
-    .filter(
-      (x) =>
-        /(?:INICIO|CONTINUACI[ÓO]N|FINALIZACI[ÓO]N) DE TURNO/i.test(x)
+    .filter((x) =>
+      /(?:INICIO|CONTINUACI[ÓO]N|FINALIZACI[ÓO]N) DE TURNO/i.test(x)
     );
 
   return partes.map((raw, i) => {
     const nombre = extraerCampo(raw, "Trabajador");
 
-    const fechaTexto = extraerCampo(
-      raw,
-      "Fecha Inicio|Fecha"
-    );
+    const fechaTexto = extraerCampo(raw, "Fecha Inicio|Fecha");
 
-    const fm = fechaTexto.match(
-      /(\d{1,2})\/(\d{1,2})\/(\d{4})/
-    );
+    const fm = fechaTexto.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 
     const fecha = fm
       ? `${fm[3]}-${fm[2].padStart(2, "0")}-${fm[1].padStart(2, "0")}`
       : null;
 
-    const fin =
-      /FINALIZACI[ÓO]N DE TURNO/i.test(raw);
+    const fin = /FINALIZACI[ÓO]N DE TURNO/i.test(raw);
 
-    const continuacion =
-      /CONTINUACI[ÓO]N DE TURNO/i.test(raw);
+    const continuacion = /CONTINUACI[ÓO]N DE TURNO/i.test(raw);
 
     const entrada = horaWhatsApp(
-      extraerCampo(
-        raw,
-        fin ? "Entrada" : "Hora Entrada|Entrada"
-      )
+      extraerCampo(raw, fin ? "Entrada" : "Hora Entrada|Entrada")
     );
 
     const salidaCampo = extraerCampo(raw, "Salida");
 
-    const salida = fin
-      ? horaWhatsApp(salidaCampo)
-      : null;
+    const salida = fin ? horaWhatsApp(salidaCampo) : null;
 
-    const fechaSalidaTexto = salidaCampo.match(
-      /\((\d{1,2}\/\d{1,2}\/\d{4})\)/
-    );
+    const fechaSalidaTexto = salidaCampo.match(/\((\d{1,2}\/\d{1,2}\/\d{4})\)/);
 
     const fechaSalida = fechaSalidaTexto
       ? fechaSalidaTexto[1].split("/").reverse().join("-")
       : null;
 
     const usuario = cachedUsers.find(
-      (u) =>
-        normalizarNombre(u.nombre) ===
-        normalizarNombre(nombre)
+      (u) => normalizarNombre(u.nombre) === normalizarNombre(nombre)
     );
 
     const entradaMs =
-      fecha && entrada
-        ? fechaHoraVenezuelaMs(fecha, entrada)
-        : NaN;
+      fecha && entrada ? fechaHoraVenezuelaMs(fecha, entrada) : NaN;
 
     let salidaMs =
       fecha && salida
-        ? fechaHoraVenezuelaMs(
-            fechaSalida || fecha,
-            salida
-          )
+        ? fechaHoraVenezuelaMs(fechaSalida || fecha, salida)
         : null;
 
-    if (
-      salidaMs != null &&
-      !fechaSalida &&
-      salidaMs < entradaMs
-    ) {
+    if (salidaMs != null && !fechaSalida && salidaMs < entradaMs) {
       salidaMs += 86400000;
     }
 
@@ -2403,25 +1955,20 @@ function analizarTextoWhatsApp(texto) {
         /(?:#\s*[A-Za-z]\d{1,}|REP-\d+|(?:N[.º°o\s]*\s*de reporte|ID)\s*:\s*\*?\s*(?:#\s*[A-Za-z])?\d+)/i
       )?.[0] || "";
 
-    const idNumero =
-      idTexto.match(/\d+/)?.[0] || null;
+    const idNumero = idTexto.match(/\d+/)?.[0] || null;
 
-    const error =
-      !usuario
-        ? "Trabajador no encontrado"
-        : !fecha || !Number.isFinite(entradaMs)
-        ? "Fecha o entrada inválida"
-        : fin && !salida
-        ? "Salida no reconocida"
-        : entradaMs > Date.now() + 60000
-        ? "Entrada futura"
-        : salidaMs != null &&
-          (
-            salidaMs <= entradaMs ||
-            salidaMs - entradaMs > 36 * 3600000
-          )
-        ? "Duración sospechosa"
-        : "";
+    const error = !usuario
+      ? "Trabajador no encontrado"
+      : !fecha || !Number.isFinite(entradaMs)
+      ? "Fecha o entrada inválida"
+      : fin && !salida
+      ? "Salida no reconocida"
+      : entradaMs > Date.now() + 60000
+      ? "Entrada futura"
+      : salidaMs != null &&
+        (salidaMs <= entradaMs || salidaMs - entradaMs > 36 * 3600000)
+      ? "Duración sospechosa"
+      : "";
 
     return {
       i,
@@ -2435,23 +1982,17 @@ function analizarTextoWhatsApp(texto) {
       continuacion,
       error,
       numero: idTexto,
-      idNumero
+      idNumero,
     };
   });
 }
 
 function previsualizarWhatsApp() {
-  const campo = document.getElementById(
-    "texto-whatsapp"
-  );
+  const campo = document.getElementById("texto-whatsapp");
 
-  importacionPendiente = analizarTextoWhatsApp(
-    campo?.value || ""
-  );
+  importacionPendiente = analizarTextoWhatsApp(campo?.value || "");
 
-  const box = document.getElementById(
-    "vista-importacion"
-  );
+  const box = document.getElementById("vista-importacion");
 
   if (!box) return;
 
@@ -2459,16 +2000,14 @@ function previsualizarWhatsApp() {
 
   if (!importacionPendiente.length) {
     box.textContent =
-      "No se detectaron mensajes de turno. " +
-      "Pega los mensajes completos.";
+      "No se detectaron mensajes de turno. " + "Pega los mensajes completos.";
     return;
   }
 
   for (const r of importacionPendiente) {
     const div = document.createElement("div");
 
-    div.style =
-      "padding:9px;border-bottom:1px solid #475569";
+    div.style = "padding:9px;border-bottom:1px solid #475569";
 
     const tipo = r.fin
       ? "FINALIZACIÓN"
@@ -2513,24 +2052,18 @@ async function confirmarImportacionWhatsApp() {
   }
 
   if (importacionPendiente.some((r) => r.error)) {
-    alert(
-      "Corrige los mensajes no reconocidos antes de importar."
-    );
+    alert("Corrige los mensajes no reconocidos antes de importar.");
     return;
   }
 
-  const abiertos = importacionPendiente.filter(
-    (r) => !r.fin
-  ).length;
+  const abiertos = importacionPendiente.filter((r) => !r.fin).length;
 
   const aceptado = confirm(
     `Se procesarán ${importacionPendiente.length} mensajes.\n` +
-    `Inicios/continuaciones: ${abiertos}\n` +
-    `Finalizaciones: ${
-      importacionPendiente.length - abiertos
-    }\n\n` +
-    "Los turnos sin salida quedarán abiertos.\n" +
-    "¿Confirmas la importación?"
+      `Inicios/continuaciones: ${abiertos}\n` +
+      `Finalizaciones: ${importacionPendiente.length - abiertos}\n\n` +
+      "Los turnos sin salida quedarán abiertos.\n" +
+      "¿Confirmas la importación?"
   );
 
   if (!aceptado) return;
@@ -2544,11 +2077,7 @@ async function confirmarImportacionWhatsApp() {
 
   try {
     const ids = [
-      ...new Set(
-        importacionPendiente.map(
-          (r) => Number(r.usuario.id)
-        )
-      )
+      ...new Set(importacionPendiente.map((r) => Number(r.usuario.id))),
     ];
 
     const todos = [];
@@ -2562,7 +2091,7 @@ async function confirmarImportacionWhatsApp() {
           .select("*")
           .eq("id_usuario", id)
           .order("hora_entrada", {
-            ascending: false
+            ascending: false,
           })
           .range(offset, offset + 499);
 
@@ -2577,52 +2106,28 @@ async function confirmarImportacionWhatsApp() {
     }
 
     const ordenados = [...importacionPendiente].sort(
-      (a, b) =>
-        a.entradaMs - b.entradaMs ||
-        Number(a.fin) - Number(b.fin)
+      (a, b) => a.entradaMs - b.entradaMs || Number(a.fin) - Number(b.fin)
     );
 
     for (const r of ordenados) {
       try {
         const propios = todos.filter(
-          (t) =>
-            String(t.id_usuario) ===
-            String(r.usuario.id)
+          (t) => String(t.id_usuario) === String(r.usuario.id)
         );
 
-        const mismo = propios.find(
-          (t) =>
-            mismoInstante(
-              t.hora_entrada,
-              r.entradaMs
-            )
+        const mismo = propios.find((t) =>
+          mismoInstante(t.hora_entrada, r.entradaMs)
         );
 
         const porId = r.idNumero
-          ? propios.find(
-              (t) =>
-                String(t.id) ===
-                String(Number(r.idNumero))
-            )
+          ? propios.find((t) => String(t.id) === String(Number(r.idNumero)))
           : null;
 
-        if (
-          porId &&
-          !mismoInstante(
-            porId.hora_entrada,
-            r.entradaMs
-          )
-        ) {
-          throw new Error(
-            "El ID corresponde a otro turno."
-          );
+        if (porId && !mismoInstante(porId.hora_entrada, r.entradaMs)) {
+          throw new Error("El ID corresponde a otro turno.");
         }
 
-        if (
-          porId &&
-          mismo &&
-          String(porId.id) !== String(mismo.id)
-        ) {
+        if (porId && mismo && String(porId.id) !== String(mismo.id)) {
           throw new Error(
             "El ID y la hora corresponden a registros distintos."
           );
@@ -2635,76 +2140,60 @@ async function confirmarImportacionWhatsApp() {
           }
 
           if (mismo.hora_salida != null) {
-            if (
-              mismoInstante(
-                mismo.hora_salida,
-                r.salidaMs
-              )
-            ) {
+            if (mismoInstante(mismo.hora_salida, r.salidaMs)) {
               omitidos++;
               continue;
             }
 
-            throw new Error(
-              "El turno ya tiene una salida diferente."
-            );
+            throw new Error("El turno ya tiene una salida diferente.");
           }
 
-          const hrs =
-            (r.salidaMs - r.entradaMs) / 3600000;
+          const hrs = (r.salidaMs - r.entradaMs) / 3600000;
 
           const { data, error } = await supabaseClient
             .from("registros_turnos")
             .update({
               hora_salida: r.salidaMs,
-              horas_totales: Number(
-                hrs.toFixed(4)
-              ),
-              estado: "completado"
+              horas_totales: Number(hrs.toFixed(4)),
+              estado: "completado",
             })
             .eq("id", mismo.id)
             .is("hora_salida", null)
-            .select()
-            .single();
+            .select();
 
-          if (error || !data) {
-            throw error ||
-              new Error("No se pudo cerrar el turno.");
+          if (error) throw error;
+          if (!data || data.length !== 1) {
+            throw new Error(
+              "No se confirmó el cierre del turno en Supabase (" +
+                (data?.length || 0) +
+                " filas). Comprueba permisos RLS y estado."
+            );
           }
 
-          Object.assign(mismo, data);
+          Object.assign(mismo, data[0]);
           actualizados++;
           continue;
         }
 
-        const abiertosExistentes = propios.filter(
-          (t) => t.hora_salida == null
-        );
+        const abiertosExistentes = propios.filter((t) => t.hora_salida == null);
 
         if (abiertosExistentes.length) {
           throw new Error(
             "El trabajador tiene otro turno abierto. " +
-            "Revisar antes de importar."
+              "Revisar antes de importar."
           );
         }
 
-        const hrs = r.fin
-          ? (r.salidaMs - r.entradaMs) / 3600000
-          : null;
+        const hrs = r.fin ? (r.salidaMs - r.entradaMs) / 3600000 : null;
 
         const payload = {
           id_usuario: Number(r.usuario.id),
           fecha_inicio: r.fecha,
           hora_entrada: r.entradaMs,
           hora_salida: r.salidaMs,
-          horas_totales:
-            hrs == null
-              ? null
-              : Number(hrs.toFixed(4)),
-          estado: r.fin
-            ? "completado"
-            : "en_turno",
-          origen: "whatsapp"
+          horas_totales: hrs == null ? null : Number(hrs.toFixed(4)),
+          estado: r.fin ? "completado" : "en_turno",
+          origen: "whatsapp",
         };
 
         const { data, error } = await supabaseClient
@@ -2714,16 +2203,13 @@ async function confirmarImportacionWhatsApp() {
           .single();
 
         if (error || !data) {
-          throw error ||
-            new Error("No se pudo crear el turno.");
+          throw error || new Error("No se pudo crear el turno.");
         }
 
         todos.push(data);
         creados++;
       } catch (e) {
-        errores.push(
-          `${r.nombre} ${r.fecha}: ${e.message}`
-        );
+        errores.push(`${r.nombre} ${r.fecha}: ${e.message}`);
       }
     }
 
@@ -2731,15 +2217,11 @@ async function confirmarImportacionWhatsApp() {
 
     alert(
       `Importación terminada.\n\n` +
-      `Creados: ${creados}\n` +
-      `Finalizaciones aplicadas: ${actualizados}\n` +
-      `Duplicados omitidos: ${omitidos}\n` +
-      `Errores: ${errores.length}` +
-      (
-        errores.length
-          ? "\n\n" + errores.join("\n")
-          : ""
-      )
+        `Creados: ${creados}\n` +
+        `Finalizaciones aplicadas: ${actualizados}\n` +
+        `Duplicados omitidos: ${omitidos}\n` +
+        `Errores: ${errores.length}` +
+        (errores.length ? "\n\n" + errores.join("\n") : "")
     );
 
     if (!errores.length) {
@@ -2747,10 +2229,7 @@ async function confirmarImportacionWhatsApp() {
       closeModals();
     }
   } catch (e) {
-    alert(
-      "No se completó la importación: " +
-      e.message
-    );
+    alert("No se completó la importación: " + e.message);
   } finally {
     importandoWhatsApp = false;
   }
