@@ -4,15 +4,9 @@
 <head>
   <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <meta
-    name="theme-color"
-    content="#07180f"
-  >
+  <meta name="theme-color" content="#07180f">
 
   <meta
     name="description"
@@ -21,9 +15,9 @@
 
   <title>Time Control | Matrix Edition</title>
 
-  <!-- ICONOS Y APLICACIÓN -->
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- ICONOS -->
+  <link rel="icon" type="image/png" href="favicon.png?v=2">
+  <link rel="apple-touch-icon" href="icon-192.png?v=2">
   <link rel="manifest" href="manifest.webmanifest">
 
   <!-- SUPABASE -->
@@ -274,7 +268,7 @@
       padding-bottom: 10px;
     }
 
-    /* IDENTIDAD VISUAL MATRIX */
+    /* LOGO Y PORTADA */
 
     .matrix-brand {
       display: flex;
@@ -285,7 +279,16 @@
       margin-bottom: 24px;
     }
 
-    .matrix-brand img {
+    .matrix-logo {
+      width: 112px;
+      height: 112px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .matrix-logo img {
       width: 112px;
       height: 112px;
       object-fit: cover;
@@ -294,6 +297,23 @@
       box-shadow:
         0 0 20px rgba(57, 255, 136, 0.35),
         0 0 42px rgba(57, 255, 136, 0.15);
+    }
+
+    .matrix-logo-fallback {
+      display: none;
+      width: 112px;
+      height: 112px;
+      border-radius: 24px;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, #113e26, #020806);
+      border: 1px solid #39ff88;
+      box-shadow: 0 0 28px rgba(57, 255, 136, 0.45);
+      color: #65ff9d;
+      font-size: 2.6rem;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      text-shadow: 0 0 16px #39ff88;
     }
 
     .matrix-brand-title {
@@ -370,40 +390,46 @@
         padding: 18px;
       }
 
-      .matrix-brand img {
+      .matrix-logo,
+      .matrix-logo img,
+      .matrix-logo-fallback {
         width: 96px;
         height: 96px;
       }
     }
   </style>
 
-  <!-- TEMA MATRIX NEÓN -->
-  <link rel="stylesheet" href="styles.css?v=3">
+  <!-- ESTILOS MATRIX -->
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 
 <body>
 
-  <!-- FONDO MATRIX ANIMADO -->
+  <!-- MATRIX ANIMADO -->
   <canvas id="matrix-canvas" aria-hidden="true"></canvas>
 
-  <!-- RELOJ VENEZUELA -->
+  <!-- RELOJ -->
   <div class="reloj-global-container">
     <div id="reloj-venezuela">
       🇻🇪 Hora Actualizada
     </div>
   </div>
 
-  <!-- =========================
-       INICIO DE SESIÓN
-  ========================== -->
-
+  <!-- LOGIN -->
   <div id="sec-login" class="container matrix-login">
 
     <div class="matrix-brand">
-      <img
-        src="icon-512.png"
-        alt="Logo Time Control TC"
-      >
+
+      <div class="matrix-logo">
+        <img
+          src="icon-512.png?v=2"
+          alt="Logo Time Control TC"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+        >
+        <div class="matrix-logo-fallback" aria-label="Time Control">
+          TC
+        </div>
+      </div>
 
       <div class="matrix-brand-title">
         TIME CONTROL
@@ -446,10 +472,7 @@
       >
     </div>
 
-    <button
-      onclick="login()"
-      style="width:100%;"
-    >
+    <button onclick="login()" style="width:100%;">
       ⚡ INGRESAR AL SISTEMA
     </button>
 
@@ -458,10 +481,7 @@
     </div>
   </div>
 
-  <!-- =========================
-       PANEL DEL TRABAJADOR
-  ========================== -->
-
+  <!-- TRABAJADOR -->
   <div id="sec-trabajador" class="container hidden">
 
     <div class="header-bar">
@@ -510,7 +530,6 @@
         margin-bottom:20px;
       "
     >
-
       <h4
         style="
           margin-bottom:12px;
@@ -522,10 +541,8 @@
       </h4>
 
       <div class="flex-row" style="margin-bottom:10px;">
-
         <div style="flex:1;">
           <label>Desde:</label>
-
           <input
             type="date"
             id="w-filtro-desde"
@@ -535,19 +552,16 @@
 
         <div style="flex:1;">
           <label>Hasta:</label>
-
           <input
             type="date"
             id="w-filtro-hasta"
             onchange="renderTablaTrabajador()"
           >
         </div>
-
       </div>
 
       <div class="form-group" style="margin-bottom:10px;">
         <label>Tu Tarifa por Hora ($):</label>
-
         <input
           type="number"
           id="w-tarifa-input"
@@ -568,10 +582,8 @@
           gap:12px;
         "
       >
-
         <div>
           <small>Total Horas Periodo:</small>
-
           <div
             id="w-total-periodo"
             class="txt-green"
@@ -594,7 +606,6 @@
             $0.00
           </div>
         </div>
-
       </div>
     </div>
 
@@ -617,23 +628,15 @@
             <th>Total Horas</th>
           </tr>
         </thead>
-
         <tbody id="tabla-resumen-trabajador"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- =========================
-       PANEL ADMINISTRADOR
-  ========================== -->
-
-  <div
-    id="sec-admin"
-    class="container container-admin hidden"
-  >
+  <!-- ADMINISTRACIÓN -->
+  <div id="sec-admin" class="container container-admin hidden">
 
     <div class="header-bar">
-
       <div>
         <div class="matrix-admin-brand">
           ◈ TIME CONTROL · MATRIX EDITION
@@ -647,7 +650,6 @@
       </div>
 
       <div class="flex-row" style="gap:5px;">
-
         <button
           onclick="openConfigTarifasModal()"
           class="btn-action btn-gray"
@@ -671,15 +673,12 @@
         >
           Salir
         </button>
-
       </div>
     </div>
 
     <div class="flex-row" style="margin-bottom:15px;">
-
       <div style="flex:1;">
         <label>Filtrar Desde:</label>
-
         <input
           type="date"
           id="filtro-desde"
@@ -689,18 +688,15 @@
 
       <div style="flex:1;">
         <label>Filtrar Hasta:</label>
-
         <input
           type="date"
           id="filtro-hasta"
           onchange="loadAdminData()"
         >
       </div>
-
     </div>
 
     <div class="flex-row" style="margin-bottom:20px;">
-
       <button
         onclick="openNuevoUsuarioModal()"
         class="btn-action"
@@ -730,7 +726,6 @@
       >
         📊 Resumen de Pago
       </button>
-
     </div>
 
     <p
@@ -748,16 +743,12 @@
     </p>
 
     <h4
-      style="
-        margin-bottom:10px;
-        color:var(--text-muted);
-      "
+      style="margin-bottom:10px;color:var(--text-muted);"
     >
       Listado de Trabajadores & Nómina
     </h4>
 
     <div style="overflow-x:auto;margin-bottom:25px;">
-
       <table>
         <thead>
           <tr>
@@ -771,24 +762,18 @@
             <th>Acciones</th>
           </tr>
         </thead>
-
         <tbody id="tabla-usuarios"></tbody>
       </table>
-
     </div>
 
     <h4
-      style="
-        margin-bottom:10px;
-        color:var(--text-muted);
-      "
+      style="margin-bottom:10px;color:var(--text-muted);"
     >
       Historial de Reportes
       (Actuales Arriba / Viejos Abajo)
     </h4>
 
     <div style="overflow-x:auto;max-height:380px;">
-
       <table>
         <thead>
           <tr>
@@ -799,27 +784,15 @@
             <th>Acción</th>
           </tr>
         </thead>
-
         <tbody id="tabla-asistencias"></tbody>
       </table>
-
     </div>
   </div>
 
-  <!-- =========================
-       MODAL CONFIRMAR TURNO
-  ========================== -->
-
+  <!-- CONFIRMACIÓN DE TURNO -->
   <div id="modal-confirm" class="modal-backdrop">
-
-    <div
-      class="modal-content"
-      style="text-align:center;"
-    >
-
-      <h3 id="confirm-title">
-        ¿Iniciar Turno?
-      </h3>
+    <div class="modal-content" style="text-align:center;">
+      <h3 id="confirm-title">¿Iniciar Turno?</h3>
 
       <p
         id="confirm-text"
@@ -831,7 +804,6 @@
       ></p>
 
       <div class="flex-row">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -845,22 +817,13 @@
         >
           Confirmar
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       MODAL EDITAR TURNO
-  ========================== -->
-
-  <div
-    id="modal-editar-turno"
-    class="modal-backdrop"
-  >
-
+  <!-- EDITAR TURNO -->
+  <div id="modal-editar-turno" class="modal-backdrop">
     <div class="modal-content">
-
       <h3
         style="
           display:flex;
@@ -873,14 +836,10 @@
         ✏️ Editar Registro de Turno
       </h3>
 
-      <input
-        type="hidden"
-        id="edit-turno-id"
-      >
+      <input type="hidden" id="edit-turno-id">
 
       <div class="form-group" style="margin-top:15px;">
         <label>Trabajador</label>
-
         <input
           type="text"
           id="edit-turno-nombre-trabajador"
@@ -895,7 +854,6 @@
 
       <div class="form-group">
         <label>Entrada (Fecha y Hora)</label>
-
         <input
           type="datetime-local"
           id="edit-turno-entrada-datetime"
@@ -905,7 +863,6 @@
 
       <div class="form-group">
         <label>Salida (Fecha y Hora)</label>
-
         <input
           type="datetime-local"
           id="edit-turno-salida-datetime"
@@ -914,7 +871,6 @@
       </div>
 
       <div class="flex-row" style="margin-top:20px;">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -929,31 +885,19 @@
         >
           Guardar Cambios
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       MODAL USUARIO
-  ========================== -->
-
+  <!-- USUARIOS -->
   <div id="modal-usuario" class="modal-backdrop">
-
     <div class="modal-content">
+      <h3 id="modal-user-title">Trabajador</h3>
 
-      <h3 id="modal-user-title">
-        Trabajador
-      </h3>
-
-      <input
-        type="hidden"
-        id="edit-user-id"
-      >
+      <input type="hidden" id="edit-user-id">
 
       <div class="form-group">
         <label>Nombre Completo:</label>
-
         <input
           type="text"
           id="edit-user-nombre"
@@ -963,7 +907,6 @@
 
       <div class="form-group">
         <label>PIN de Acceso (Numérico):</label>
-
         <input
           type="text"
           id="edit-user-pin"
@@ -973,25 +916,15 @@
 
       <div class="form-group">
         <label>Tipo de Pago:</label>
-
         <select id="edit-user-tipo">
-          <option value="Horas">
-            Por Horas
-          </option>
-
-          <option value="Fijo">
-            Sueldo Fijo Semanal
-          </option>
-
-          <option value="Gasolina">
-            Planta (Gasolina)
-          </option>
+          <option value="Horas">Por Horas</option>
+          <option value="Fijo">Sueldo Fijo Semanal</option>
+          <option value="Gasolina">Planta (Gasolina)</option>
         </select>
       </div>
 
       <div class="form-group">
         <label>Tarifa Individual ($):</label>
-
         <input
           type="number"
           id="edit-user-tarifa"
@@ -1002,7 +935,6 @@
 
       <div class="form-group">
         <label>Cargo / Rol:</label>
-
         <input
           type="text"
           id="edit-user-cargo"
@@ -1017,7 +949,6 @@
       >
 
       <div class="flex-row" style="margin-top:15px;">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -1031,35 +962,23 @@
         >
           Guardar
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       CARGAR HORAS MANUALES
-  ========================== -->
-
-  <div
-    id="modal-agregar-horas"
-    class="modal-backdrop"
-  >
-
+  <!-- HORAS MANUALES -->
+  <div id="modal-agregar-horas" class="modal-backdrop">
     <div class="modal-content">
-
       <h3>Cargar Horas Manuales</h3>
 
       <div class="form-group">
         <label>Trabajador:</label>
-
         <select id="manual-user-select"></select>
       </div>
 
       <div class="flex-row">
-
         <div class="form-group" style="flex:1;">
           <label>Fecha Inicio:</label>
-
           <input
             type="date"
             id="manual-fecha-inicio"
@@ -1068,20 +987,16 @@
 
         <div class="form-group" style="flex:1;">
           <label>Fecha Salida:</label>
-
           <input
             type="date"
             id="manual-fecha-fin"
           >
         </div>
-
       </div>
 
       <div class="flex-row">
-
         <div class="form-group" style="flex:1;">
           <label>Hora Entrada:</label>
-
           <input
             type="time"
             id="manual-entrada"
@@ -1091,18 +1006,15 @@
 
         <div class="form-group" style="flex:1;">
           <label>Hora Salida:</label>
-
           <input
             type="time"
             id="manual-salida"
             value="00:50"
           >
         </div>
-
       </div>
 
       <div class="flex-row" style="margin-top:15px;">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -1116,20 +1028,12 @@
         >
           Registrar
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       REPORTE DE NÓMINA
-  ========================== -->
-
-  <div
-    id="modal-resumen-pago"
-    class="modal-backdrop"
-  >
-
+  <!-- REPORTE DE NÓMINA -->
+  <div id="modal-resumen-pago" class="modal-backdrop">
     <div
       class="modal-content"
       style="
@@ -1139,7 +1043,6 @@
         max-height:none;
       "
     >
-
       <h3>Reporte de Nómina</h3>
 
       <p
@@ -1166,7 +1069,6 @@
       ></div>
 
       <div class="flex-row">
-
         <button
           onclick="copiarResumenPago()"
           class="btn-action"
@@ -1181,22 +1083,13 @@
         >
           Cerrar
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       CONFIGURAR TARIFAS
-  ========================== -->
-
-  <div
-    id="modal-config-tarifas"
-    class="modal-backdrop"
-  >
-
+  <!-- TARIFA GLOBAL -->
+  <div id="modal-config-tarifas" class="modal-backdrop">
     <div class="modal-content">
-
       <h3>Aplicar Tarifa Global</h3>
 
       <p
@@ -1206,13 +1099,11 @@
           margin-bottom:15px;
         "
       >
-        Esto actualizará la tarifa de todos los
-        trabajadores por hora.
+        Esto actualizará la tarifa de todos los trabajadores por hora.
       </p>
 
       <div class="form-group">
         <label>Nueva Tarifa Global ($):</label>
-
         <input
           type="number"
           id="global-tarifa-input"
@@ -1222,7 +1113,6 @@
       </div>
 
       <div class="flex-row" style="margin-top:15px;">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -1236,27 +1126,17 @@
         >
           Aplicar a Todos
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       CONFIGURAR PIN
-  ========================== -->
-
-  <div
-    id="modal-config-pin"
-    class="modal-backdrop"
-  >
-
+  <!-- PIN ADMIN -->
+  <div id="modal-config-pin" class="modal-backdrop">
     <div class="modal-content">
-
       <h3>Cambiar PIN de Admin</h3>
 
       <div class="form-group">
         <label>PIN Actual:</label>
-
         <input
           type="password"
           id="pin-actual-input"
@@ -1266,7 +1146,6 @@
 
       <div class="form-group">
         <label>Nuevo PIN:</label>
-
         <input
           type="password"
           id="pin-nuevo-input"
@@ -1276,7 +1155,6 @@
 
       <div class="form-group">
         <label>Confirmar Nuevo PIN:</label>
-
         <input
           type="password"
           id="pin-confirmar-input"
@@ -1285,7 +1163,6 @@
       </div>
 
       <div class="flex-row" style="margin-top:15px;">
-
         <button
           onclick="closeModals()"
           class="btn-action btn-gray"
@@ -1299,21 +1176,16 @@
         >
           Actualizar PIN
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- =========================
-       IMPORTAR WHATSAPP
-  ========================== -->
-
+  <!-- IMPORTACIÓN WHATSAPP -->
   <div
     id="modal-importar-whatsapp"
     class="modal-backdrop hidden"
     style="display:none;z-index:9999;"
   >
-
     <div
       style="
         background:#06140e;
@@ -1326,10 +1198,7 @@
         overflow:auto;
       "
     >
-
-      <h3>
-        📋 Importar reportes de WhatsApp
-      </h3>
+      <h3>📋 Importar reportes de WhatsApp</h3>
 
       <p style="margin:10px 0;">
         Pega uno o varios mensajes completos.
@@ -1345,7 +1214,7 @@
           color:#ffffff;
           padding:10px;
         "
-        placeholder="🟢 INICIO DE TURNO ..."
+        placeholder="🔴 FINALIZACIÓN DE TURNO ..."
       ></textarea>
 
       <div
@@ -1357,14 +1226,7 @@
         "
       ></div>
 
-      <div
-        style="
-          display:flex;
-          gap:8px;
-          flex-wrap:wrap;
-        "
-      >
-
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button
           class="btn-action"
           onclick="previsualizarWhatsApp()"
@@ -1393,13 +1255,11 @@
         >
           Cerrar
         </button>
-
       </div>
     </div>
   </div>
 
-  <!-- JAVASCRIPT ORIGINAL:
-       NO CAMBIAR LAS FUNCIONES -->
+  <!-- JAVASCRIPT ORIGINAL -->
   <script src="app.js"></script>
 
 </body>
