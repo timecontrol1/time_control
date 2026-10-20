@@ -1021,22 +1021,20 @@ async function ejecutarToggleTurno() {
         (ahora - Number(turno.hora_entrada)) / 3600000
       );
 
-      const { data, error } = await supabaseClient
-        .from("registros_turnos")
-        .update({
-          hora_salida: ahora,
-          horas_totales: Number(hrs.toFixed(4)),
-          estado: "completado"
-        })
-        .eq("id", turno.id)
-        .is("hora_salida", null)
-        .select();
+      const { data, error } = await supabaseClient.rpc(
+  "finalizar_turno_con_pin",
+  {
+    p_usuario: currentUser.usuario,
+    p_pin: pinSesionTurno,
+    p_turno_id: Number(turno.id)
+  }
+);
 
       // Una actualización puede devolver cero filas si las políticas RLS
       // impiden verla, o si otro dispositivo cerró el turno antes.
       // Evitar .single() permite mostrar una causa útil sin error PGRST116.
       if (error) throw error;
-      if (!data || data.length !== 1) {
+      if (!data || (Array.isArray(data) && data.length !== 1)) {
         throw new Error(
           "La salida no devolvió exactamente un turno confirmado. " +
           "Comprueba los permisos RLS de registros_turnos y si el turno " +
