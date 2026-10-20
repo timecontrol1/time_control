@@ -211,7 +211,7 @@ function copiarReportePortapapeles(
 
 let currentUser = null;
 let currentShift = null;
-
+let pinSesionTurno = null;
 let cachedUsers = [
   {
     id: 1,
