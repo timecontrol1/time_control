@@ -74,17 +74,30 @@ function getDateTimeLocalString(val) {
 
 function iniciarRelojEnVivo() {
   const actualizarReloj = () => {
-    const now = new Date();
-    const vzla = getVenezuelaDate(now);
-    const yyyy = vzla.getFullYear();
-    const mm = String(vzla.getMonth() + 1).padStart(2, "0");
-    const dd = String(vzla.getDate()).padStart(2, "0");
-    const horaTexto =
-      `🇻🇪 Hora Actual: ${dd}-${mm}-${yyyy} ${getFormattedDateTime(now)}`;
-    document.querySelectorAll("#reloj-venezuela").forEach((el) => {
-      el.innerText = horaTexto;
+    const ahora = new Date();
+
+    const fecha = new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }).format(ahora);
+
+    const hora = new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    }).format(ahora);
+
+    const horaTexto = `🇻🇪 Hora Actual: ${fecha} ${hora}`;
+
+    document.querySelectorAll("#reloj, .reloj").forEach(el => {
+      el.textContent = horaTexto;
     });
   };
+
   actualizarReloj();
   setInterval(actualizarReloj, 1000);
 }
