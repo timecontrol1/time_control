@@ -2794,3 +2794,119 @@ async function confirmarImportacionWhatsApp() {
     importandoWhatsApp = false;
   }
 }
+
+async function registrarPlantaElectrica() {
+  if (
+    !currentUser ||
+    (currentUser.rol !== "admin" &&
+      currentUser.usuario !== "administrador")
+  ) {
+    alert("Solo el administrador puede registrar la planta.");
+    return;
+  }
+
+  const fecha = document.getElementById("planta-fecha").value;
+  const horaInicio = document.getElementById("planta-inicio").value;
+  const horaFin = document.getElementById("planta-fin").value;
+
+  if (!fecha || !horaInicio || !horaFin) {
+    alert("Completa la fecha y las dos horas.");
+    return;
+  }
+
+  const inicio = new Date(
+    `${fecha}T${horaInicio}:00-04:00`
+  );
+
+  let fin = new Date(
+    `${fecha}T${horaFin}:00-04:00`
+  );
+
+  if (fin < inicio) {
+    fin = new Date(fin.getTime() + 86400000);
+  }
+
+  const minutos = Math.round(
+    (fin.getTime() - inicio.getTime()) / 60000
+  );
+
+  if (
+    !Number.isFinite(minutos) ||
+    minutos <= 0 ||
+    minutos > 2880
+  ) {
+    alert("El horario de funcionamiento no es válido.");
+    return;
+  }
+
+  const duracion = formatoHorasMinutos(minutos);
+
+  const clave = prompt(
+    "Introduce la clave privada de autorización administrativa:"
+  );
+
+  if (!clave) return;
+
+  try {
+    const { data, error } = await supabaseClient.rpc(
+      "tc_registrar_planta_admin",
+      {
+        p_clave: clave,
+        p_usuario: currentUser.usuario,
+        p_fecha: fecha,
+        p_inicio: inicio.toISOString(),
+        p_fin: fin.toISOString()
+      }
+    );
+
+    if (error) throw error;
+
+    if (!data) {
+      throw new Error("No se confirmó el registro.");
+    }
+
+    const horaLegible = valor => {
+      return new Intl.DateTimeFormat("es-VE", {
+        timeZone: "America/Caracas",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+      }).format(valor);
+    };
+
+    const fechaLegible = fecha.split("-").reverse().join("/");
+
+    const mensaje =
+      "⚡ *REPORTE DE PLANTA ELÉCTRICA*\n" +
+      "📅 *Fecha:* " + fechaLegible + "\n" +
+      "🔴 *Se fue la luz:* " +
+      horaLegible(inicio) + "\n" +
+      "🟢 *Regresó la luz:* " +
+      horaLegible(fin) + "\n" +
+      "⏱️ *Tiempo de funcionamiento:* " +
+      duracion + " h";
+
+    try {
+      await navigator.clipboard.writeText(mensaje);
+      alert(
+        "Registro de planta #" + data +
+        " guardado correctamente.\n\n" +
+        "Reporte copiado para WhatsApp."
+      );
+    } catch (copiaError) {
+      window.prompt(
+        "Registro guardado. Copia el reporte para WhatsApp:",
+        mensaje
+      );
+    }
+
+    document.getElementById("planta-inicio").value = "";
+    document.getElementById("planta-fin").value = "";
+
+  } catch (error) {
+    alert(
+      "No se pudo guardar el reporte de planta: " +
+      error.message
+    );
+  }
+}
