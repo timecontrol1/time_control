@@ -1388,7 +1388,7 @@ const totalHoras =
               ? "-"
               : totalHoras < 1
               ? Math.round(totalMinsUser) + " min"
-              : formatoHorasMinutos(totalMinsUser) + " h"
+              : formatoHorasMinutos(totalMinsUser + minutosPlantaExtra) + " h"
           }
         </strong>
       </td>
