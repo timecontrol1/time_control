@@ -140,6 +140,21 @@ function htmlSeguro(valor) {
   );
 }
 
+function formatoHorasMinutos(minutos) {
+  const total = Math.max(0, Math.round(Number(minutos) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function formatoHorasDecimales(horas) {
+  return formatoHorasMinutos(Number(horas) * 60);
+}
+
+function normalizarDuracionReporte(valor) {
+  const texto = String(valor ?? "").trim();
+  const decimal = texto.match(/^([0-9]+(?:\.[0-9]+)?)\s*(?:hrs?|horas?)$/i);
+  return decimal ? `${formatoHorasDecimales(Number(decimal[1]))} h` : texto;
+}
+
 function copiarReportePortapapeles(
   nombreTrabajador,
   accion,
@@ -177,7 +192,7 @@ function copiarReportePortapapeles(
       `📅 *Fecha Inicio:* ${fechaEntradaEsp}\n` +
       `⏰ *Entrada:* ${horaEntradaLimpia}\n` +
       `⏰ *Salida:* ${horaSalidaLimpia}${detalleSalidaFecha}\n` +
-      `⏱️ *Total Trabajado:* ${totalHorasStr}`;
+      `⏱️ *Total Trabajado:* ${normalizarDuracionReporte(totalHorasStr)}`;
   }
 
   if (numeroReporte !== null) {
@@ -1062,7 +1077,7 @@ async function ejecutarToggleTurno() {
         turno.hora_entrada,
         fecha,
         ahora,
-        `${hrs.toFixed(2)} hrs`,
+        `${formatoHorasDecimales(hrs)} h`,
         previos.length > 0,
         turno.id
       );
@@ -1137,7 +1152,7 @@ function renderTablaTrabajador() {
       t.estado === "en_turno" || !t.hora_salida
         ? '<span class="txt-green">Activo</span>'
         : horasTurno >= 1
-        ? `${horasTurno.toFixed(2)} hrs`
+        ? `${formatoHorasMinutos(minsTurno)} h`
         : `${Math.round(minsTurno)} min`;
 
     const codigo = codigoTurno(currentUser.nombre, t.id);
@@ -1175,7 +1190,8 @@ function renderTablaTrabajador() {
   const labelTotal = document.getElementById("w-total-periodo");
 
   if (labelTotal) {
-    labelTotal.innerText = `${totalHorasPeriodo.toFixed(2)} hrs`;
+    labelTotal.innerText = `${formatoHorasMinutos(totalMinutosPeriodo)} h`;
+    labelTotal.dataset.horasDecimales = String(totalHorasPeriodo);
   }
 
   calcularSimuladorCobro();
@@ -1224,14 +1240,14 @@ function calcularSimuladorCobro() {
 
   const match = labelPeriodo.innerText.match(/([0-9.]+)\s*hrs/);
 
-  const horas = match
-    ? parseFloat(match[1])
-    : parseFloat(labelPeriodo.innerText) || 0;
+  const horas = labelPeriodo.dataset.horasDecimales !== undefined
+    ? Number(labelPeriodo.dataset.horasDecimales) || 0
+    : match ? parseFloat(match[1]) : 0;
 
   labelTotal.innerText = `$${(horas * tarifa).toFixed(2)}`;
 
   if (labelDetalle) {
-    labelDetalle.innerText = `Suma de ${horas.toFixed(2)} hrs`;
+    labelDetalle.innerText = `Suma de ${formatoHorasDecimales(horas)} h`;
   }
 }
 
@@ -1361,7 +1377,7 @@ function renderTablaUsuariosAdmin() {
               ? "-"
               : totalHoras < 1
               ? Math.round(totalMinsUser) + " min"
-              : totalHoras.toFixed(2) + " hrs"
+              : formatoHorasMinutos(totalMinsUser) + " h"
           }
         </strong>
       </td>
@@ -1487,7 +1503,7 @@ function renderHistorialAdmin() {
       t.estado === "en_turno" || !t.hora_salida
         ? '<span class="txt-green">En Línea (Activo)</span>'
         : mins >= 60
-        ? `${(mins / 60).toFixed(2)} hrs`
+        ? `${formatoHorasMinutos(mins)} h`
         : `${mins} min`;
 
     const botonesForzar =
@@ -2090,7 +2106,7 @@ function abrirResumenPagoModal() {
       <tr>
         <td>${htmlSeguro(f.nombre)}</td>
         <td>${htmlSeguro(f.tipo)}</td>
-        <td>${f.tipo === "Fijo" ? "-" : f.horas.toFixed(2)}</td>
+        <td>${f.tipo === "Fijo" ? "-" : formatoHorasDecimales(f.horas) + " h"}</td>
         <td>$${f.tarifa.toFixed(2)}</td>
         <td><strong>$${f.monto.toFixed(2)}</strong></td>
       </tr>
@@ -2141,7 +2157,7 @@ function copiarResumenPago() {
     const detalle =
       f.tipo === "Fijo"
         ? "Sueldo fijo"
-        : `${f.horas.toFixed(2)} hrs`;
+        : `${formatoHorasDecimales(f.horas)} h`;
 
     texto +=
       `• *${f.nombre}* (${detalle}): ` +
