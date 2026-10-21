@@ -636,12 +636,6 @@ function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
   }
 }
 
-
-  if (elHasta && !elHasta.value) {
-    elHasta.value = formatDate(sunday);
-  }
-}
-
 let syncEnCurso = false;
 
 async function syncDataFromSupabase() {
