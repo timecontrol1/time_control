@@ -3086,6 +3086,31 @@ renderHistorialAdmin = function () {
     tabla.appendChild(fila);
   });
 };
-    
+
+
+/* ORDEN UNICO DE REPORTES */
+const renderHistorialSinOrden = renderHistorialAdmin;
+
+renderHistorialAdmin = function () {
+  renderHistorialSinOrden();
+
+  const tabla = document.getElementById("tabla-asistencias");
+  if (!tabla) return;
+
+  const filas = Array.from(tabla.querySelectorAll("tr"));
+
+  filas.sort((a, b) => {
+    const obtenerNumero = fila => {
+      const texto = fila.cells[0]?.textContent || "";
+      const numeros = texto.match(/#(\d+)/);
+      return numeros ? Number(numeros[1]) : -1;
+    };
+
+    return obtenerNumero(b) - obtenerNumero(a);
+  });
+
+  filas.forEach(fila => tabla.appendChild(fila));
+};
+
 
 
