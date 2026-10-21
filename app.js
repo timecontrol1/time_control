@@ -28,3 +28,4 @@ async function borrarTurnoUnico(idTurno) {
     alert("No se pudo eliminar: " + e.message);
   }
 }
+ 
