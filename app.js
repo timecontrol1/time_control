@@ -74,17 +74,29 @@ function getDateTimeLocalString(val) {
 
 function iniciarRelojEnVivo() {
   const actualizarReloj = () => {
-    const now = new Date();
-    const vzla = getVenezuelaDate(now);
-    const yyyy = vzla.getFullYear();
-    const mm = String(vzla.getMonth() + 1).padStart(2, "0");
-    const dd = String(vzla.getDate()).padStart(2, "0");
-    const horaTexto =
-      `🇻🇪 Hora Actual: ${dd}-${mm}-${yyyy} ${getFormattedDateTime(now)}`;
-    document.querySelectorAll("#reloj-venezuela").forEach((el) => {
-      el.innerText = horaTexto;
-    });
-  };
+    const ahora = new Date();
+
+    const fecha = new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }).format(ahora);
+
+    const hora = new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    }).format(ahora);
+
+    const horaTexto = `🇻🇪 Hora Actual: ${fecha} ${hora}`;
+
+  document.querySelectorAll("#reloj-venezuela").forEach(el => {
+  el.textContent = horaTexto;
+});
+};
   actualizarReloj();
   setInterval(actualizarReloj, 1000);
 }
@@ -199,7 +211,7 @@ function copiarReportePortapapeles(
 
 let currentUser = null;
 let currentShift = null;
-
+let pinSesionTurno = null;
 let cachedUsers = [
   {
     id: 1,
@@ -764,7 +776,7 @@ async function login() {
 
   if (pInput === String(user.pin).trim()) {
     currentUser = user;
-
+pinSesionTurno = pInput;
     localStorage.setItem(
       "active_user_id",
       user.id
@@ -831,7 +843,7 @@ function logout() {
 
   currentUser = null;
   currentShift = null;
-
+pinSesionTurno = null;
   localStorage.removeItem("active_user_id");
 
   document
@@ -1009,22 +1021,20 @@ async function ejecutarToggleTurno() {
         (ahora - Number(turno.hora_entrada)) / 3600000
       );
 
-      const { data, error } = await supabaseClient
-        .from("registros_turnos")
-        .update({
-          hora_salida: ahora,
-          horas_totales: Number(hrs.toFixed(4)),
-          estado: "completado"
-        })
-        .eq("id", turno.id)
-        .is("hora_salida", null)
-        .select();
+      const { data, error } = await supabaseClient.rpc(
+  "finalizar_turno_con_pin",
+  {
+    p_usuario: currentUser.usuario,
+    p_pin: pinSesionTurno,
+    p_turno_id: Number(turno.id)
+  }
+);
 
       // Una actualización puede devolver cero filas si las políticas RLS
       // impiden verla, o si otro dispositivo cerró el turno antes.
       // Evitar .single() permite mostrar una causa útil sin error PGRST116.
       if (error) throw error;
-      if (!data || data.length !== 1) {
+      if (!data || (Array.isArray(data) && data.length !== 1)) {
         throw new Error(
           "La salida no devolvió exactamente un turno confirmado. " +
           "Comprueba los permisos RLS de registros_turnos y si el turno " +
@@ -1381,6 +1391,21 @@ function renderTablaUsuariosAdmin() {
 }
 
 function renderHistorialAdmin() {
+  const tbodyBusqueda = document.getElementById("tabla-asistencias");
+  if (!tbodyBusqueda) return;
+  let buscar = document.getElementById("buscar-reportes-admin");
+  if (!buscar) {
+    buscar = document.createElement("input");
+    buscar.id = "buscar-reportes-admin";
+    buscar.type = "search";
+    buscar.placeholder = "Buscar por número de reporte o trabajador";
+    buscar.setAttribute("aria-label", "Buscar reportes");
+    buscar.style.cssText = "display:block;width:100%;box-sizing:border-box;padding:11px;margin:12px 0;background:#061b13;color:#fff;border:1px solid #26845b;border-radius:7px;";
+    buscar.addEventListener("input", renderHistorialAdmin);
+    const tabla = tbodyBusqueda.closest("table");
+    if (tabla && tabla.parentNode) tabla.parentNode.insertBefore(buscar, tabla);
+  }
+  const consulta = (buscar.value || "").trim().toLowerCase().replace(/^#/, "");
   const desde = document.getElementById("filtro-desde")
     ? document.getElementById("filtro-desde").value
     : "";
@@ -1391,6 +1416,14 @@ function renderHistorialAdmin() {
 
   const turnosFiltrados = cachedTurnos
     .filter((t) => {
+      if (consulta) {
+        const trabajador = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
+        const nombre = String(trabajador?.nombre || "").toLowerCase();
+        const numero = String(t.id ?? "").padStart(5, "0");
+        const anterior = codigoTurno(trabajador?.nombre, t.id).toLowerCase().replace(/^#/, "");
+        if (!nombre.includes(consulta) && !numero.includes(consulta) &&
+            !String(t.id).includes(consulta) && !anterior.includes(consulta)) return false;
+      }
       if (t.estado === "en_turno" || !t.hora_salida) {
         return true;
       }
@@ -1427,7 +1460,7 @@ function renderHistorialAdmin() {
       ? userObj.nombre
       : "Desconocido";
 
-    const codigo = codigoTurno(nombreUsuario, t.id);
+    const codigo = `#${String(t.id).padStart(5, "0")}`;
 
     const entMs = msTurno(t.hora_entrada);
     const salMs = t.hora_salida
@@ -1622,15 +1655,24 @@ async function borrarTurnoUnico(idTurno) {
   }
 
   try {
-    const { error } = await supabaseClient
-      .from("registros_turnos")
-      .delete()
-      .eq("id", idTurno);
+    
+const { data, error } = await supabaseClient
+  .from("registros_turnos")
+  .delete()
+  .eq("id", idTurno)
+  .select("id");
 
-    if (error) throw error;
+if (error) throw error;
 
-    await syncDataFromSupabase();
-    alert("Registro eliminado.");
+if (!data || data.length !== 1) {
+  throw new Error(
+    "Supabase no confirmó la eliminación. Revisa los permisos RLS."
+  );
+}
+
+await syncDataFromSupabase();
+alert("Registro eliminado y confirmado en Supabase.");
+
   } catch (e) {
     alert("No se pudo eliminar: " + e.message);
   }
