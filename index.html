@@ -766,12 +766,19 @@
       </table>
     </div>
 
-    <h4
-      style="margin-bottom:10px;color:var(--text-muted);"
-    >
-      Historial de Reportes
-      (Actuales Arriba / Viejos Abajo)
-    </h4>
+    
+<h4 style="margin-bottom:10px;color:var(--text-muted);">
+  Historial de Reportes
+</h4>
+
+<input
+  type="search"
+  id="buscar-reportes-admin"
+  placeholder="Buscar por número de reporte o trabajador"
+  oninput="renderHistorialAdmin()"
+  style="display:block;width:100%;box-sizing:border-box;padding:11px;margin:12px 0;background:#061b13;color:#fff;border:1px solid #26845b;border-radius:7px;"
+>
+
 
     <div style="overflow-x:auto;max-height:380px;">
       <table>
