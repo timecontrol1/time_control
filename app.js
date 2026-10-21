@@ -1312,7 +1312,20 @@ function renderTablaUsuariosAdmin() {
         }
       });
 
-    const totalHoras = totalMinsUser / 60;
+    
+const minutosPlantaExtra =
+  tipoPago === "Gasolina"
+    ? historialPlanta
+        .filter(p =>
+          (!desde || p.fecha >= desde) &&
+          (!hasta || p.fecha <= hasta)
+        )
+        .reduce((suma, p) => suma + Number(p.minutos || 0), 0)
+    : 0;
+
+const totalHoras =
+  (totalMinsUser + minutosPlantaExtra) / 60;
+
 
     const totalPagar =
       tipoPago === "Gasolina"
@@ -2043,7 +2056,24 @@ function calcularNominaPeriodo(desde, hasta) {
       }
     });
 
-    const horas = minutos / 60;
+    
+const tipoPagoPlanta = (u.tipo_pago || "").trim();
+
+const minutosPlantaExtra =
+  tipoPagoPlanta === "Gasolina"
+    ? historialPlanta
+        .filter(p =>
+          (!desde || p.fecha >= desde) &&
+          (!hasta || p.fecha <= hasta)
+        )
+        .reduce(
+          (suma, p) => suma + Number(p.minutos || 0),
+          0
+        )
+    : 0;
+
+const horas = (minutos + minutosPlantaExtra) / 60;
+
     const tarifa = Number(u.tarifa) || 0;
     const tipo = (u.tipo_pago || "Horas").trim();
 
