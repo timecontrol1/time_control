@@ -2930,81 +2930,6 @@ function alternarPanelPlanta() {
 } 
 
 
-/* HISTORIAL DE PLANTA ELÉCTRICA */
-
-let historialPlanta = [];
-
-async function consultarHistorialPlanta() {
-  const clave = prompt("Clave especial de la planta:");
-  if (!clave) return;
-
-  try {
-    const { data, error } = await supabaseClient.rpc(
-      "tc_listar_reportes_planta_admin",
-      {
-        p_clave: clave,
-        p_usuario: currentUser.usuario
-      }
-    );
-
-    if (error) throw error;
-
-    if (!data || !data.length) {
-      alert("Clave incorrecta o sin reportes.");
-      return;
-    }
-
-    historialPlanta = data;
-    renderHistorialAdmin();
-  } catch (e) {
-    alert("Error: " + e.message);
-  }
-}
-
-function copiarHistorialPlanta(id) {
-  const p = historialPlanta.find(
-    x => Number(x.id) === Number(id)
-  );
-  if (!p) return;
-
-  const hora = valor =>
-    new Intl.DateTimeFormat("es-VE", {
-      timeZone: "America/Caracas",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true
-    }).format(new Date(valor));
-
-  const numero = "#" +
-    String(p.numero_reporte).padStart(6, "0");
-
-  const mensaje =
-    "⚡ *REPORTE DE PLANTA ELÉCTRICA*\n" +
-    "🆔 *Reporte:* " + numero + "\n" +
-    "📅 *Fecha:* " +
-    p.fecha.split("-").reverse().join("/") + "\n" +
-    "🔴 *Se fue la luz:* " + hora(p.inicio) + "\n" +
-    "🟢 *Regresó la luz:* " + hora(p.fin) + "\n" +
-    "⏱️ *Tiempo:* " +
-    formatoHorasMinutos(p.minutos) + " h";
-
-  window.prompt("Copia el reporte:", mensaje);
-}
-
-const renderHistorialOriginal = renderHistorialAdmin;
-
-renderHistorialAdmin = function () {
-  renderHistorialOriginal();
-
-  const tabla = document.getElementById(
-    "tabla-asistencias"
-  );
-  if (!tabla) return;
-
-  const buscar = document.getElementById(
-    "buscar-reportes-admin"
-  );
-
   if (buscar &&
       !document.getElementById("btn-historial-planta")) {
     const boton = document.createElement("button");
@@ -3070,8 +2995,163 @@ renderHistorialAdmin = function () {
       📋 Copiar</button></td>
     `;
 
+    
+/* HISTORIAL UNIFICADO - PLANTA ELECTRICA */
+
+let historialPlanta = [];
+let plantaHistorialCargado = false;
+let plantaHistorialCargando = false;
+
+async function cargarPlantaAutomaticamente() {
+  if (plantaHistorialCargando) return;
+
+  plantaHistorialCargando = true;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("tc_historial_planta_publico")
+      .select("numero_reporte,fecha,inicio,fin,minutos")
+      .order("numero_reporte", { ascending: false });
+
+    if (error) throw error;
+
+    historialPlanta = data || [];
+    plantaHistorialCargado = true;
+    renderHistorialAdmin();
+
+  } catch (error) {
+    console.error("Error cargando planta:", error);
+  } finally {
+    plantaHistorialCargando = false;
+  }
+}
+
+function copiarReportePlanta(numeroReporte) {
+  const p = historialPlanta.find(
+    r => Number(r.numero_reporte) === Number(numeroReporte)
+  );
+
+  if (!p) return;
+
+  const hora = valor =>
+    new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(new Date(valor));
+
+  const numero = "#" +
+    String(p.numero_reporte).padStart(6, "0");
+
+  const mensaje =
+    "⚡ *REPORTE DE PLANTA ELÉCTRICA*\n" +
+    "🆔 *Reporte:* " + numero + "\n" +
+    "📅 *Fecha:* " +
+    formatFechaEsp(p.fecha) + "\n" +
+    "🔴 *Se fue la luz:* " + hora(p.inicio) + "\n" +
+    "🟢 *Regresó la luz:* " + hora(p.fin) + "\n" +
+    "⏱️ *Duración:* " +
+    formatoHorasMinutos(p.minutos) + " h";
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(mensaje)
+      .then(() => alert("Reporte " + numero + " copiado"))
+      .catch(() => prompt("Copia el reporte:", mensaje));
+  } else {
+    prompt("Copia el reporte:", mensaje);
+  }
+}
+
+const renderHistorialOriginal = renderHistorialAdmin;
+
+renderHistorialAdmin = function () {
+  renderHistorialOriginal();
+
+  const tabla = document.getElementById("tabla-asistencias");
+  if (!tabla) return;
+
+  const botonAnterior =
+    document.getElementById("btn-historial-planta");
+
+  if (botonAnterior) botonAnterior.remove();
+
+  if (!plantaHistorialCargado) {
+    if (!plantaHistorialCargando) {
+      cargarPlantaAutomaticamente();
+    }
+    return;
+  }
+
+  const desde =
+    document.getElementById("filtro-desde")?.value || "";
+
+  const hasta =
+    document.getElementById("filtro-hasta")?.value || "";
+
+  const consulta =
+    (document.getElementById("buscar-reportes-admin")?.value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^#/, "");
+
+  const reportes = historialPlanta.filter(p => {
+    const numero =
+      String(p.numero_reporte).padStart(6, "0");
+
+    return (!desde || p.fecha >= desde) &&
+      (!hasta || p.fecha <= hasta) &&
+      (!consulta ||
+        numero.includes(consulta) ||
+        "planta electrica".includes(
+          consulta.normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+        ));
+  });
+
+  if (reportes.length &&
+      tabla.textContent.includes("No hay registros en este rango")) {
+    tabla.innerHTML = "";
+  }
+
+  const hora = valor =>
+    new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(new Date(valor));
+
+  reportes.forEach(p => {
+    const fila = document.createElement("tr");
+
+    const numero =
+      String(p.numero_reporte).padStart(6, "0");
+
+    fila.innerHTML = `
+      <td>
+        <strong>⚡ Planta Eléctrica</strong>
+        <div class="txt-green">#${numero}</div>
+      </td>
+      <td>
+        ${formatFechaEsp(p.fecha)}
+        ${hora(p.inicio)}
+      </td>
+      <td>${hora(p.fin)}</td>
+      <td class="txt-green">
+        <strong>${formatoHorasMinutos(p.minutos)} h</strong>
+      </td>
+      <td>
+        <button class="btn-action btn-blue"
+          onclick="copiarReportePlanta(${Number(p.numero_reporte)})">
+          📋 Copiar
+        </button>
+      </td>
+    `;
+
     tabla.appendChild(fila);
   });
 };
+    
 
 
