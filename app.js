@@ -2910,3 +2910,22 @@ async function registrarPlantaElectrica() {
     );
   }
 }
+
+function alternarPanelPlanta() {
+  const panel = document.getElementById("panel-planta");
+
+  if (!panel) return;
+
+  const abierto = panel.style.display !== "none";
+
+  panel.style.display = abierto ? "none" : "block";
+
+  if (!abierto) {
+    const fecha = document.getElementById("planta-fecha");
+
+    if (fecha && !fecha.value) {
+      fecha.value = getFormattedDate();
+    }
+  }
+}
+
