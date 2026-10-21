@@ -1589,93 +1589,62 @@ function cerrarModalEditarTurno() {
   }
 }
 
+// Administración protegida: autorización adicional no almacenada en el navegador.
+function obtenerClaveCorreccion() {
+  const clave = prompt("Clave de autorización para corregir reportes (distinta al PIN de acceso):");
+  return clave && clave.trim() ? clave : null;
+}
+
 async function guardarEdicionTurno() {
-  const idTurno = document.getElementById("edit-turno-id").value;
-  const valEntrada = document.getElementById(
-    "edit-turno-entrada-datetime"
-  ).value;
-  const valSalida =
-    document.getElementById("edit-turno-salida-datetime").value;
-
-  if (!valEntrada || !valSalida) {
-    alert("Por favor completa las fechas y horas de entrada y salida.");
-    return;
+  if (!currentUser || currentUser.rol !== "admin") { alert("Solo el administrador puede editar reportes."); return; }
+  const idTurno = Number(document.getElementById("edit-turno-id").value);
+  const t = cachedTurnos.find(x => Number(x.id) === idTurno);
+  if (!t || t.hora_salida == null || t.estado === "en_turno") {
+    alert("No se pueden editar turnos abiertos."); return;
   }
-
-  const fechaEntrada = valEntrada.split("T")[0];
-  const horaEntrada = valEntrada.split("T")[1];
-  const fechaSalida = valSalida.split("T")[0];
-  const horaSalida = valSalida.split("T")[1];
-
-  const tEntrada = fechaHoraVenezuelaMs(fechaEntrada, horaEntrada);
-  const tSalida = fechaHoraVenezuelaMs(fechaSalida, horaSalida);
-
-  if (!Number.isFinite(tEntrada) ||
-      !Number.isFinite(tSalida) ||
-      tSalida <= tEntrada) {
-    alert("La salida debe ser posterior a la entrada.");
-    return;
+  const entrada = document.getElementById("edit-turno-entrada-datetime").value;
+  const salida = document.getElementById("edit-turno-salida-datetime").value;
+  if (!entrada || !salida) { alert("Completa la entrada y la salida."); return; }
+  const tEntrada = fechaHoraVenezuelaMs(...entrada.split("T"));
+  const tSalida = fechaHoraVenezuelaMs(...salida.split("T"));
+  if (!Number.isFinite(tEntrada) || !Number.isFinite(tSalida) || tSalida <= tEntrada) {
+    alert("La salida debe ser posterior a la entrada."); return;
   }
-
-  const diffHrs = (tSalida - tEntrada) / 3600000;
-
-  if (!supabaseClient) {
-    alert("Sin conexión con Supabase.");
-    return;
-  }
-
+  const clave = obtenerClaveCorreccion();
+  if (!clave) return;
   try {
-    const { error } = await supabaseClient
-      .from("registros_turnos")
-      .update({
-        fecha_inicio: fechaEntrada,
-        hora_entrada: tEntrada,
-        hora_salida: tSalida,
-        horas_totales: Number(diffHrs.toFixed(4)),
-        estado: "completado"
-      })
-      .eq("id", idTurno);
-
+    const {data,error} = await supabaseClient.rpc("tc_editar_reporte_admin", {
+      p_clave: clave, p_usuario: currentUser.usuario, p_turno_id: idTurno,
+      p_fecha: entrada.split("T")[0], p_entrada: tEntrada, p_salida: tSalida
+    });
     if (error) throw error;
-
+    if (Number(data) !== idTurno) throw new Error("Supabase no confirmó la edición.");
     cerrarModalEditarTurno();
     await syncDataFromSupabase();
-    alert("¡Registro actualizado correctamente!");
-  } catch (e) {
-    alert("No se pudo guardar la edición: " + e.message);
-  }
+    alert(`Reporte #${String(idTurno).padStart(5,"0")} actualizado correctamente.`);
+  } catch(e) { alert("No se pudo editar: " + e.message); }
 }
 
 async function borrarTurnoUnico(idTurno) {
-  if (!confirm("¿Eliminar este registro de turno?")) return;
-
-  if (!supabaseClient) {
-    alert("Sin conexión con Supabase.");
-    return;
+  if (!currentUser || currentUser.rol !== "admin") { alert("Solo el administrador puede borrar reportes."); return; }
+  const t = cachedTurnos.find(x => Number(x.id) === Number(idTurno));
+  if (!t || t.hora_salida == null || t.estado === "en_turno") {
+    alert("No se pueden borrar turnos abiertos."); return;
   }
-
+  const u = cachedUsers.find(x => Number(x.id) === Number(t.id_usuario));
+  const numero = `#${String(idTurno).padStart(5,"0")}`;
+  if (!confirm(`¿Borrar definitivamente el reporte ${numero} de ${u?.nombre || "Trabajador"}?\nEsta acción quedará registrada en auditoría.`)) return;
+  const clave = obtenerClaveCorreccion();
+  if (!clave) return;
   try {
-    
-const { data, error } = await supabaseClient
-  .from("registros_turnos")
-  .delete()
-  .eq("id", idTurno)
-  .select("id");
-
-if (error) throw error;
-
-if (!data || data.length !== 1) {
-  throw new Error(
-    "Supabase no confirmó la eliminación. Revisa los permisos RLS."
-  );
-}
-
-await syncDataFromSupabase();
-alert("Registro eliminado y confirmado en Supabase.");
-
-  } catch (e) {
-    alert("No se pudo eliminar: " + e.message);
-  }
+    const {data,error} = await supabaseClient.rpc("tc_borrar_reporte_admin", {
+      p_clave: clave, p_usuario: currentUser.usuario, p_turno_id: Number(idTurno)
+    });
+    if (error) throw error;
+    if (Number(data) !== Number(idTurno)) throw new Error("Supabase no confirmó el borrado.");
+    await syncDataFromSupabase();
+    alert(`Reporte ${numero} eliminado correctamente.`);
+  } catch(e) { alert("No se pudo borrar: " + e.message); }
 }
 
 async function forzarSalida(idTurno) {
