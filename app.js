@@ -590,48 +590,52 @@ function initMatrixEffect() {
   setInterval(draw, 33);
 }
 
-function initSemanaEnCursoDates(
-  inputDesdeId,
-  inputHastaId
-) {
-  const now = new Date();
-  const vzla = getVenezuelaDate(now);
 
-  const year = vzla.getUTCFullYear();
-  const month = vzla.getUTCMonth();
-  const date = vzla.getUTCDate();
-  const dayOfWeek = vzla.getUTCDay();
+function initSemanaEnCursoDates(inputDesdeId, inputHastaId) {
+  // Primer período: lunes 19/10/2026.
+  // Cada período tiene exactamente 14 días.
+  const inicioBase = Date.UTC(2026, 9, 19);
+  const ahoraVzla = getVenezuelaDate(new Date());
 
-  const distanceToMonday =
-    dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-
-  const monday = new Date(
-    Date.UTC(year, month, date + distanceToMonday)
+  const hoy = Date.UTC(
+    ahoraVzla.getUTCFullYear(),
+    ahoraVzla.getUTCMonth(),
+    ahoraVzla.getUTCDate()
   );
 
-  const sunday = new Date(
-    Date.UTC(year, month, date + distanceToMonday + 6)
+  const diasDesdeInicio = Math.floor(
+    (hoy - inicioBase) / 86400000
   );
 
-  const formatDate = (d) => {
-    const yyyy = d.getUTCFullYear();
-    const mm = String(
-      d.getUTCMonth() + 1
-    ).padStart(2, "0");
+  const numeroPeriodo = Math.floor(
+    diasDesdeInicio / 14
+  );
 
-    const dd = String(
-      d.getUTCDate()
-    ).padStart(2, "0");
+  const inicio = new Date(
+    inicioBase + numeroPeriodo * 14 * 86400000
+  );
 
-    return `${yyyy}-${mm}-${dd}`;
-  };
+  const fin = new Date(
+    inicio.getTime() + 13 * 86400000
+  );
 
-  const elDesde = document.getElementById(inputDesdeId);
-  const elHasta = document.getElementById(inputHastaId);
+  const formatear = fecha =>
+    fecha.getUTCFullYear() + "-" +
+    String(fecha.getUTCMonth() + 1).padStart(2, "0") + "-" +
+    String(fecha.getUTCDate()).padStart(2, "0");
 
-  if (elDesde && !elDesde.value) {
-    elDesde.value = formatDate(monday);
+  const desde = document.getElementById(inputDesdeId);
+  const hasta = document.getElementById(inputHastaId);
+
+  if (desde && !desde.value) {
+    desde.value = formatear(inicio);
   }
+
+  if (hasta && !hasta.value) {
+    hasta.value = formatear(fin);
+  }
+}
+
 
   if (elHasta && !elHasta.value) {
     elHasta.value = formatDate(sunday);
