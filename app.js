@@ -1632,15 +1632,24 @@ async function borrarTurnoUnico(idTurno) {
   }
 
   try {
-    const { error } = await supabaseClient
-      .from("registros_turnos")
-      .delete()
-      .eq("id", idTurno);
+    
+const { data, error } = await supabaseClient
+  .from("registros_turnos")
+  .delete()
+  .eq("id", idTurno)
+  .select("id");
 
-    if (error) throw error;
+if (error) throw error;
 
-    await syncDataFromSupabase();
-    alert("Registro eliminado.");
+if (!data || data.length !== 1) {
+  throw new Error(
+    "Supabase no confirmó la eliminación. Revisa los permisos RLS."
+  );
+}
+
+await syncDataFromSupabase();
+alert("Registro eliminado y confirmado en Supabase.");
+
   } catch (e) {
     alert("No se pudo eliminar: " + e.message);
   }
