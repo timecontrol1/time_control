@@ -2927,5 +2927,151 @@ function alternarPanelPlanta() {
       fecha.value = getFormattedDate();
     }
   }
+} 
+
+
+/* HISTORIAL DE PLANTA ELÉCTRICA */
+
+let historialPlanta = [];
+
+async function consultarHistorialPlanta() {
+  const clave = prompt("Clave especial de la planta:");
+  if (!clave) return;
+
+  try {
+    const { data, error } = await supabaseClient.rpc(
+      "tc_listar_reportes_planta_admin",
+      {
+        p_clave: clave,
+        p_usuario: currentUser.usuario
+      }
+    );
+
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      alert("Clave incorrecta o sin reportes.");
+      return;
+    }
+
+    historialPlanta = data;
+    renderHistorialAdmin();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
 }
+
+function copiarHistorialPlanta(id) {
+  const p = historialPlanta.find(
+    x => Number(x.id) === Number(id)
+  );
+  if (!p) return;
+
+  const hora = valor =>
+    new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(new Date(valor));
+
+  const numero = "#" +
+    String(p.numero_reporte).padStart(6, "0");
+
+  const mensaje =
+    "⚡ *REPORTE DE PLANTA ELÉCTRICA*\n" +
+    "🆔 *Reporte:* " + numero + "\n" +
+    "📅 *Fecha:* " +
+    p.fecha.split("-").reverse().join("/") + "\n" +
+    "🔴 *Se fue la luz:* " + hora(p.inicio) + "\n" +
+    "🟢 *Regresó la luz:* " + hora(p.fin) + "\n" +
+    "⏱️ *Tiempo:* " +
+    formatoHorasMinutos(p.minutos) + " h";
+
+  window.prompt("Copia el reporte:", mensaje);
+}
+
+const renderHistorialOriginal = renderHistorialAdmin;
+
+renderHistorialAdmin = function () {
+  renderHistorialOriginal();
+
+  const tabla = document.getElementById(
+    "tabla-asistencias"
+  );
+  if (!tabla) return;
+
+  const buscar = document.getElementById(
+    "buscar-reportes-admin"
+  );
+
+  if (buscar &&
+      !document.getElementById("btn-historial-planta")) {
+    const boton = document.createElement("button");
+    boton.id = "btn-historial-planta";
+    boton.textContent = "⚡ Ver reportes de planta";
+    boton.className = "btn-action btn-blue";
+    boton.style.margin = "8px 0";
+    boton.onclick = consultarHistorialPlanta;
+    buscar.insertAdjacentElement("afterend", boton);
+  }
+
+  const desde = document.getElementById(
+    "filtro-desde"
+  )?.value || "";
+
+  const hasta = document.getElementById(
+    "filtro-hasta"
+  )?.value || "";
+
+  const consulta = (buscar?.value || "")
+    .trim().toLowerCase().replace(/^#/, "");
+
+  const reportes = historialPlanta.filter(p => {
+    const numero = String(p.numero_reporte)
+      .padStart(6, "0");
+
+    return (!desde || p.fecha >= desde) &&
+      (!hasta || p.fecha <= hasta) &&
+      (!consulta ||
+        numero.includes(consulta) ||
+        "planta eléctrica".includes(consulta));
+  });
+
+  if (reportes.length &&
+      tabla.textContent.includes(
+        "No hay registros en este rango"
+      )) {
+    tabla.innerHTML = "";
+  }
+
+  const hora = valor =>
+    new Intl.DateTimeFormat("es-VE", {
+      timeZone: "America/Caracas",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(new Date(valor));
+
+  reportes.forEach(p => {
+    const fila = document.createElement("tr");
+    const numero = "#" +
+      String(p.numero_reporte).padStart(6, "0");
+
+    fila.innerHTML = `
+      <td><strong>⚡ Planta Eléctrica</strong>
+      <div class="txt-green">${numero}</div></td>
+      <td>${formatFechaEsp(p.fecha)}
+      ${hora(p.inicio)}</td>
+      <td>${hora(p.fin)}</td>
+      <td>${formatoHorasMinutos(p.minutos)} h</td>
+      <td><button class="btn-action btn-blue"
+      onclick="copiarHistorialPlanta(${Number(p.id)})">
+      📋 Copiar</button></td>
+    `;
+
+    tabla.appendChild(fila);
+  });
+};
+
 
