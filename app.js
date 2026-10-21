@@ -2981,6 +2981,7 @@ async function cargarPlantaAutomaticamente() {
 
     historialPlanta = data || [];
     plantaHistorialCargado = true;
+    renderTablaUsuariosAdmin();
     renderHistorialAdmin();
 
   } catch (error) {
