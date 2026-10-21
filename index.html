@@ -728,6 +728,41 @@
       </button>
     </div>
 
+  
+<!-- REGISTRO DE PLANTA ELECTRICA -->
+<div style="background:#061b13;border:1px solid #26845b;border-radius:10px;padding:16px;margin:18px 0;">
+  <h3 style="color:#39ff88;margin-bottom:12px;">
+    ⚡ Registro de Planta Eléctrica
+  </h3>
+
+  <p style="color:#aaa;font-size:13px;">
+    Registra el corte eléctrico y el regreso de la luz.
+  </p>
+
+  <label>Fecha del corte:</label>
+  <input type="date" id="planta-fecha">
+
+  <label>Hora en que se fue la luz:</label>
+  <input type="time" id="planta-inicio">
+
+  <label>Hora en que regresó la luz:</label>
+  <input type="time" id="planta-fin">
+
+  <p style="font-size:12px;color:#aaa;">
+    Si la luz regresa después de medianoche,
+    se tomará como el día siguiente.
+  </p>
+
+  <button
+    type="button"
+    class="btn-action"
+    onclick="registrarPlantaElectrica()"
+    style="width:100%;margin-top:12px;background:#10b981;color:#022c22;"
+  >
+    ⚡ Guardar y copiar reporte
+  </button>
+</div>
+<!-- FIN REGISTRO DE PLANTA -->
     <p
       id="presence-status"
       style="margin-bottom:8px;color:#39ff88;"
