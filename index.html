@@ -400,7 +400,7 @@
   </style>
 
   <!-- ESTILOS MATRIX -->
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 
 <body>
@@ -418,31 +418,10 @@
   <!-- LOGIN -->
   <div id="sec-login" class="container matrix-login">
 
-    <div class="matrix-brand">
-
-      <div class="matrix-logo">
-        <img
-          src="icon-512.png?v=2"
-          alt="Logo Time Control TC"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-        >
-        <div class="matrix-logo-fallback" aria-label="Time Control">
-          TC
-        </div>
-      </div>
-
-      <div class="matrix-brand-title">
-        TIME CONTROL
-      </div>
-
-      <div class="matrix-brand-subtitle">
-        MATRIX EDITION · CONTROL DE ASISTENCIA
-      </div>
+    <div class="matrix-brand matrix-brand-full">
+      <img class="matrix-login-hero" src="logo-time-control.png" alt="Logo original Time Control" onerror="this.src='icon-512.png'">
+      <div class="matrix-brand-subtitle">MATRIX EDITION · CONTROL DE ASISTENCIA</div>
     </div>
-
-    <h2 class="matrix-login-heading">
-      Acceso al Sistema
-    </h2>
 
     <div class="form-group">
       <label for="login-usuario">
@@ -452,7 +431,7 @@
       <input
         type="text"
         id="login-usuario"
-        placeholder="Ej. ronald o angel"
+        placeholder=""
         autocomplete="username"
       >
     </div>

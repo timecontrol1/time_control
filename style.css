@@ -464,3 +464,12 @@ tbody tr:hover {
  .tc-head-exit{padding:5px 6px!important;font-size:.67rem!important}
  .tc-config-menu{right:0;width:172px!important}
 }
+
+/* Pantalla de acceso: logo original grande, fondo Matrix animado intacto */
+#sec-login.matrix-login { padding: 14px 14px 22px !important; overflow: hidden; border: 1px solid rgba(57,255,136,.45); background: rgba(1,17,10,.90); }
+#sec-login .matrix-brand-full { width: calc(100% + 28px); margin: -14px -14px 18px; gap: 0; }
+#sec-login .matrix-login-hero { display:block; width:100%; height:auto; max-height:380px; object-fit:contain; object-position:center; border-radius:10px 10px 0 0; filter:drop-shadow(0 0 12px rgba(24,255,111,.25)); }
+#sec-login .matrix-brand-subtitle { padding:8px 8px 4px; font-size:.64rem; letter-spacing:.14em; }
+#sec-login .form-group { margin-bottom:15px; }
+#sec-login input { font-size:16px; }
+@media(max-width:560px) { #sec-login .matrix-login-hero { max-height:min(72vw,360px); } }
