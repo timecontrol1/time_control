@@ -688,6 +688,9 @@ async function syncDataFromSupabase() {
 
     cachedTurnos = turnos;
     guardarTurnosLocales();
+    if (currentUser?.rol === "admin" && plantaHistorialCargado) {
+      await cargarPlantaAutomaticamente();
+    }
 
     if (currentUser) {
       if (currentUser.rol === "admin") {
@@ -1282,7 +1285,25 @@ function renderTablaUsuariosAdmin() {
 
   tbody.innerHTML = "";
 
-  cachedUsers.forEach((u, index) => {
+  // El estado de trabajo proviene de los turnos abiertos, no de la conexión.
+  const trabajandoIds = new Set(cachedTurnos
+    .filter(t => t.hora_salida == null)
+    .map(t => String(t.id_usuario)));
+  const trabajadores = cachedUsers.filter(u => u.rol !== "admin");
+  let contador = document.getElementById("contador-trabajando-admin");
+  if (!contador) {
+    contador = document.createElement("div");
+    contador.id = "contador-trabajando-admin";
+    contador.style.cssText = "margin:10px 0;padding:10px;border:1px solid #14532d;border-radius:8px;color:#34d399;font-weight:700;";
+    const tabla = tbody.closest("table");
+    if (tabla?.parentNode) tabla.parentNode.insertBefore(contador, tabla);
+  }
+  contador.textContent = "🟢 Trabajando ahora: " +
+    trabajadores.filter(u => trabajandoIds.has(String(u.id))).length +
+    " de " + trabajadores.length;
+  const usuariosOrdenados = [...cachedUsers].sort((a,b) =>
+    Number(trabajandoIds.has(String(b.id))) - Number(trabajandoIds.has(String(a.id))));
+  usuariosOrdenados.forEach((u, index) => {
     const tarifaVal =
       u.tarifa !== undefined ? parseFloat(u.tarifa) : 1.0;
 
@@ -1343,6 +1364,9 @@ const totalHoras =
     tr.innerHTML = `
       <td>
         <strong>${htmlSeguro(u.nombre)}</strong>
+        <div style="font-size:.75rem;font-weight:700;color:${trabajandoIds.has(String(u.id)) ? "#34d399" : "#94a3b8"}">
+          ${trabajandoIds.has(String(u.id)) ? "🟢 Trabajando" : "⚪ Fuera de turno"}
+        </div>
         <div style="font-size:.72rem;color:${
           conectados.has(String(u.id))
             ? "#10b981"
@@ -1560,24 +1584,40 @@ function renderHistorialAdmin() {
       <td>
         <div class="actions-cell">
           ${botonesForzar}
+          <button onclick="copiarTurnoAdmin(${t.id})" class="btn-action btn-blue"
+            style="padding:6px 9px;font-size:.9rem;" title="Copiar reporte" aria-label="Copiar reporte">📋</button>
 
           <button
             onclick="window.abrirModalEditarTurno(${t.id})"
             class="btn-action btn-blue"
-            style="padding:6px 12px;font-size:.85rem;"
-          >✏️ Editar</button>
+            style="padding:6px 9px;font-size:.9rem;"
+           title="Editar reporte" aria-label="Editar reporte">✏️</button>
 
           <button
             onclick="borrarTurnoUnico(${t.id})"
             class="btn-action btn-red"
-            style="padding:6px 12px;font-size:.85rem;"
-          >🗑️ Borrar</button>
+            style="padding:6px 9px;font-size:.9rem;"
+           title="Eliminar reporte" aria-label="Eliminar reporte">🗑️</button>
         </div>
       </td>
     `;
 
     tbody.appendChild(tr);
   });
+}
+
+function copiarTurnoAdmin(idTurno) {
+  const t = cachedTurnos.find(x => Number(x.id) === Number(idTurno));
+  if (!t) return;
+  const u = cachedUsers.find(x => String(x.id_usuario) === String(t.id_usuario) || String(x.id) === String(t.id_usuario));
+  const terminado = t.hora_salida != null;
+  const duracion = terminado ? formatoHorasMinutos(
+    (msTurno(t.hora_salida) - msTurno(t.hora_entrada)) / 60000
+  ) + " h" : "";
+  copiarReportePortapapeles(u?.nombre || "Trabajador", terminado ? "FIN" : "INICIO",
+    t.fecha_inicio, t.hora_entrada,
+    terminado ? fechaVenezuelaDesdeMs(msTurno(t.hora_salida)) : "",
+    terminado ? t.hora_salida : "", duracion, false, t.id);
 }
 
 window.abrirModalEditarTurno = function (idTurno) {
@@ -2932,6 +2972,7 @@ async function registrarPlantaElectrica() {
 
     document.getElementById("planta-inicio").value = "";
     document.getElementById("planta-fin").value = "";
+    await cargarPlantaAutomaticamente();
 
   } catch (error) {
     alert(
@@ -3107,10 +3148,14 @@ renderHistorialAdmin = function () {
         <strong>${formatoHorasMinutos(p.minutos)} h</strong>
       </td>
       <td>
-        <button class="btn-action btn-blue"
-          onclick="copiarReportePlanta(${Number(p.numero_reporte)})">
-          📋 Copiar
-        </button>
+        <div class="actions-cell">
+          <button class="btn-action btn-blue" style="padding:6px 9px;"
+            onclick="copiarReportePlanta(${Number(p.numero_reporte)})" title="Copiar reporte" aria-label="Copiar reporte">📋</button>
+          <button class="btn-action btn-blue" style="padding:6px 9px;"
+            onclick="editarReportePlanta(${Number(p.numero_reporte)})" title="Editar reporte" aria-label="Editar reporte">✏️</button>
+          <button class="btn-action btn-red" style="padding:6px 9px;"
+            onclick="borrarReportePlanta(${Number(p.numero_reporte)})" title="Eliminar reporte" aria-label="Eliminar reporte">🗑️</button>
+        </div>
       </td>
     `;
 
@@ -3145,3 +3190,59 @@ renderHistorialAdmin = function () {
 
 
 
+
+
+// Edición y borrado de planta: validación de clave y auditoría en Supabase.
+async function editarReportePlanta(numero) {
+  if (currentUser?.rol !== "admin" || !supabaseClient) return;
+  const p = historialPlanta.find(x => Number(x.numero_reporte) === Number(numero));
+  if (!p) return alert("Reporte no encontrado.");
+  const fecha = prompt("Fecha (AAAA-MM-DD):", p.fecha);
+  if (fecha === null) return;
+  const formatoHora = v => new Intl.DateTimeFormat("en-GB", {
+    timeZone:"America/Caracas", hour:"2-digit", minute:"2-digit", hourCycle:"h23"
+  }).format(new Date(v));
+  const inicio = prompt("Hora de inicio (HH:MM, Venezuela):", formatoHora(p.inicio));
+  if (inicio === null) return;
+  const fin = prompt("Hora de finalización (HH:MM, Venezuela):", formatoHora(p.fin));
+  if (fin === null) return;
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha) ||
+      !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(inicio) ||
+      !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(fin)) {
+    return alert("Fecha u hora inválida.");
+  }
+  const tInicio = fechaHoraVenezuelaMs(fecha,inicio);
+  let tFin = fechaHoraVenezuelaMs(fecha,fin);
+  if (tFin <= tInicio) tFin += 86400000;
+  if (tFin - tInicio > 48*3600000) return alert("Duración inválida.");
+  if (!confirm("¿Guardar la corrección del reporte #" + String(numero).padStart(6,"0") + "?")) return;
+  const clave = obtenerClaveCorreccion();
+  if (!clave) return;
+  try {
+    const {data,error} = await supabaseClient.rpc("tc_editar_planta_admin",{
+      p_clave:clave,p_usuario:currentUser.usuario,p_numero_reporte:Number(numero),
+      p_fecha:fecha,p_inicio:new Date(tInicio).toISOString(),p_fin:new Date(tFin).toISOString()
+    });
+    if (error) throw error;
+    if (Number(data)!==Number(numero)) throw new Error("No se confirmó la edición.");
+    await cargarPlantaAutomaticamente();
+    alert("Reporte de planta actualizado.");
+  } catch(e) { alert("No se pudo editar el reporte: "+e.message); }
+}
+
+async function borrarReportePlanta(numero) {
+  if (currentUser?.rol !== "admin" || !supabaseClient) return;
+  if (!confirm("¿Eliminar definitivamente el reporte de planta #" +
+    String(numero).padStart(6,"0") + "? La operación quedará auditada.")) return;
+  const clave = obtenerClaveCorreccion();
+  if (!clave) return;
+  try {
+    const {data,error} = await supabaseClient.rpc("tc_borrar_planta_admin",{
+      p_clave:clave,p_usuario:currentUser.usuario,p_numero_reporte:Number(numero)
+    });
+    if (error) throw error;
+    if (Number(data)!==Number(numero)) throw new Error("No se confirmó el borrado.");
+    await cargarPlantaAutomaticamente();
+    alert("Reporte de planta eliminado.");
+  } catch(e) { alert("No se pudo eliminar el reporte: "+e.message); }
+}
