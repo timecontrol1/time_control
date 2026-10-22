@@ -1422,6 +1422,9 @@ const totalHoras =
       </td>
 
       <td>
+        <button onclick="verDetallesPagoIndividual(${u.id})"
+          class="btn-icon" title="Ver detalle de jornadas"
+          aria-label="Ver detalle de jornadas">🔍</button>
         <button onclick="copiarPagoIndividual(${u.id})"
           class="btn-icon" title="Copiar reporte de pago"
           aria-label="Copiar reporte de pago">📋</button>
@@ -1445,63 +1448,99 @@ const totalHoras =
 }
 
 // Copiar resumen individual del periodo seleccionado, sin modificar la nomina.
-function copiarPagoIndividual(usuarioId) {
-  if (!currentUser || currentUser.rol !== "admin") return;
+function calcularPagoIndividual(usuarioId) {
   const u = cachedUsers.find(x => String(x.id) === String(usuarioId));
-  if (!u) return alert("Trabajador no encontrado.");
-
+  if (!u) throw new Error("Trabajador no encontrado.");
   const desde = document.getElementById("filtro-desde")?.value || "";
   const hasta = document.getElementById("filtro-hasta")?.value || "";
-  if (!desde || !hasta || hasta < desde) {
-    return alert("Selecciona un periodo de fechas valido.");
-  }
-
+  if (!desde || !hasta || hasta < desde) throw new Error("Selecciona un período válido.");
   const tipo = (u.tipo_pago || "Horas").trim();
   const tarifa = Number(u.tarifa) || 0;
-  let minutos = 0;
-  cachedTurnos.filter(t =>
-    String(t.id_usuario) === String(u.id) &&
-    t.fecha_inicio >= desde && t.fecha_inicio <= hasta
-  ).forEach(t => {
+  const jornadas = cachedTurnos.filter(t =>
+    String(t.id_usuario) === String(u.id) && t.fecha_inicio >= desde && t.fecha_inicio <= hasta
+  ).map(t => {
     const entrada = msTurno(t.hora_entrada);
     const salida = t.hora_salida == null ? NaN : msTurno(t.hora_salida);
+    const abierta = t.hora_salida == null;
+    let minutos = 0;
     if (Number.isFinite(entrada) && Number.isFinite(salida) && salida > entrada) {
-      minutos += (salida - entrada) / 60000;
-    } else if (t.hora_salida == null && Number.isFinite(entrada) && t.origen !== "whatsapp") {
-      minutos += Math.max(0, (Date.now() - entrada) / 60000);
-    } else if (t.hora_salida != null && t.horas_totales) {
-      minutos += Number(t.horas_totales) * 60;
+      minutos = (salida - entrada) / 60000;
+    } else if (abierta && Number.isFinite(entrada)) {
+      minutos = Math.max(0, (Date.now() - entrada) / 60000);
+    } else if (!abierta && t.horas_totales) {
+      minutos = Number(t.horas_totales) * 60;
     }
-  });
-
+    return {fecha:t.fecha_inicio,entrada,salida,abierta,minutos};
+  }).sort((a,b) => (a.entrada || 0) - (b.entrada || 0));
   if (tipo === "Gasolina") {
-    minutos += historialPlanta
-      .filter(p => p.fecha >= desde && p.fecha <= hasta)
-      .reduce((total,p) => total + Number(p.minutos || 0),0);
+    historialPlanta.filter(p => p.fecha >= desde && p.fecha <= hasta).forEach(p => {
+      jornadas.push({fecha:p.fecha, entrada:msTurno(p.inicio),salida:msTurno(p.fin),
+        abierta:false,minutos:Number(p.minutos || 0),planta:true});
+    });
+    jornadas.sort((a,b) => (a.entrada || 0) - (b.entrada || 0));
   }
+  const minutos = jornadas.reduce((n,j) => n + j.minutos,0);
+  const semanas = Math.max(1, (Math.round((new Date(hasta) - new Date(desde)) / 86400000) + 1) / 7);
+  const tarifaAplicada = tipo === "Gasolina" ? 0.7 : tarifa;
+  const total = tipo === "Fijo" ? tarifa * semanas : minutos / 60 * tarifaAplicada;
+  return {u,desde,hasta,tipo,tarifa,tarifaAplicada,minutos,total,jornadas};
+}
 
-  const horas = minutos / 60;
-  const semanas = Math.max(1, (Math.round(
-    (new Date(hasta) - new Date(desde)) / 86400000
-  ) + 1) / 7);
-  const tarifaAplicada = tipo === "Gasolina" ? 1.4 * 0.5 : tarifa;
-  const total = tipo === "Fijo" ? tarifa * semanas : horas * tarifaAplicada;
-  const texto =
-    "💰 *REPORTE DE PAGO – " + u.nombre.toUpperCase() + "*\\n" +
-    "📅 *Período:* " + formatFechaEsp(desde) + " al " + formatFechaEsp(hasta) + "\\n" +
-    "⏱️ *Total de horas trabajadas:* " + formatoHorasMinutos(minutos) + " h\\n" +
-    (tipo === "Fijo"
-      ? "💵 *Tarifa:* $" + tarifa.toFixed(2) + " por semana\\n"
-      : "💵 *Tarifa por hora:* $" + tarifaAplicada.toFixed(2) + "\\n") +
-    "💰 *Total a pagar:* $" + total.toFixed(2);
+function textoResumenPagoIndividual(p) {
+  return "💰 *REPORTE DE PAGO – " + p.u.nombre.toUpperCase() + "*\n" +
+    "📅 *Período:* " + formatFechaEsp(p.desde) + " al " + formatFechaEsp(p.hasta) + "\n" +
+    "⏱️ *Total de horas trabajadas:* " + formatoHorasMinutos(p.minutos) + " h\n" +
+    (p.tipo === "Fijo" ? "💵 *Tarifa:* $" + p.tarifa.toFixed(2) + " por semana\n"
+      : "💵 *Tarifa por hora:* $" + p.tarifaAplicada.toFixed(2) + "\n") +
+    "💰 *Total a pagar:* $" + p.total.toFixed(2);
+}
 
+function copiarPagoIndividual(usuarioId) {
+  if (!currentUser || currentUser.rol !== "admin") return;
+  let p;
+  try { p = calcularPagoIndividual(usuarioId); } catch(e) { return alert(e.message); }
+  const texto = textoResumenPagoIndividual(p);
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(texto)
-      .then(() => alert("Reporte de pago de " + u.nombre + " copiado."))
-      .catch(() => window.prompt("Copia el reporte:", texto));
-  } else {
-    window.prompt("Copia el reporte:", texto);
-  }
+      .then(() => alert("Resumen de pago copiado."))
+      .catch(() => window.prompt("Copia el resumen:", texto));
+  } else window.prompt("Copia el resumen:", texto);
+}
+
+function verDetallesPagoIndividual(usuarioId) {
+  if (!currentUser || currentUser.rol !== "admin") return;
+  let p;
+  try { p = calcularPagoIndividual(usuarioId); } catch(e) { return alert(e.message); }
+  document.getElementById("modal-detalle-pago-individual")?.remove();
+  const capa = document.createElement("div");
+  capa.id = "modal-detalle-pago-individual";
+  capa.style.cssText = "position:fixed;inset:0;background:#000c;z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px;";
+  const panel = document.createElement("div");
+  panel.style.cssText = "background:#071c14;color:#fff;border:1px solid #26744d;border-radius:12px;padding:18px;width:min(680px,100%);max-height:90vh;overflow:auto;box-sizing:border-box;";
+  const hora = n => Number.isFinite(n) ? new Intl.DateTimeFormat("es-VE",{
+    timeZone:"America/Caracas",hour:"2-digit",minute:"2-digit",hour12:true
+  }).format(new Date(n)) : "—";
+  const filas = p.jornadas.map(j => `<tr>
+    <td style="padding:8px;border-bottom:1px solid #254534;">${htmlSeguro(formatFechaEsp(j.fecha))}${j.planta ? " ⚡" : ""}</td>
+    <td style="padding:8px;border-bottom:1px solid #254534;">${hora(j.entrada)}</td>
+    <td style="padding:8px;border-bottom:1px solid #254534;">${j.abierta ? "🟢 En curso" : hora(j.salida)}</td>
+    <td style="padding:8px;border-bottom:1px solid #254534;">${formatoHorasMinutos(j.minutos)} h</td>
+  </tr>`).join("");
+  panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <h3 style="margin:0;">🔍 Detalles de pago: ${htmlSeguro(p.u.nombre)}</h3>
+    <button id="cerrar-detalle-pago" class="btn-icon" aria-label="Cerrar">✖</button></div>
+    <p>📅 ${formatFechaEsp(p.desde)} al ${formatFechaEsp(p.hasta)}</p>
+    <div style="overflow-x:auto;"><table style="width:100%;font-size:0.9rem;border-collapse:collapse;">
+    <thead><tr><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr></thead>
+    <tbody>${filas || '<tr><td colspan="4" style="padding:12px;">No hay jornadas registradas.</td></tr>'}</tbody></table></div>
+    <p><strong>Total trabajado:</strong> ${formatoHorasMinutos(p.minutos)} h</p>
+    <p><strong>Tarifa:</strong> $${(p.tipo === "Fijo" ? p.tarifa : p.tarifaAplicada).toFixed(2)} ${p.tipo === "Fijo" ? "por semana" : "por hora"}</p>
+    <p><strong>Total a pagar:</strong> $${p.total.toFixed(2)}</p>
+    <button id="copiar-desde-detalle-pago" class="btn-icon" style="padding:10px;">📋 Copiar resumen</button>`;
+  capa.appendChild(panel); document.body.appendChild(capa);
+  panel.querySelector("#cerrar-detalle-pago").onclick = () => capa.remove();
+  capa.addEventListener("click", e => {if(e.target === capa) capa.remove();});
+  panel.querySelector("#copiar-desde-detalle-pago").onclick = () => copiarPagoIndividual(usuarioId);
 }
 
 function renderHistorialAdmin() {
