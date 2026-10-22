@@ -1422,6 +1422,9 @@ const totalHoras =
       </td>
 
       <td>
+        <button onclick="copiarPagoIndividual(${u.id})"
+          class="btn-icon" title="Copiar reporte de pago"
+          aria-label="Copiar reporte de pago">📋</button>
         <button
           onclick="openEditarUsuarioModal(${u.id})"
           class="btn-icon"
@@ -1439,6 +1442,66 @@ const totalHoras =
 
     tbody.appendChild(tr);
   });
+}
+
+// Copiar resumen individual del periodo seleccionado, sin modificar la nomina.
+function copiarPagoIndividual(usuarioId) {
+  if (!currentUser || currentUser.rol !== "admin") return;
+  const u = cachedUsers.find(x => String(x.id) === String(usuarioId));
+  if (!u) return alert("Trabajador no encontrado.");
+
+  const desde = document.getElementById("filtro-desde")?.value || "";
+  const hasta = document.getElementById("filtro-hasta")?.value || "";
+  if (!desde || !hasta || hasta < desde) {
+    return alert("Selecciona un periodo de fechas valido.");
+  }
+
+  const tipo = (u.tipo_pago || "Horas").trim();
+  const tarifa = Number(u.tarifa) || 0;
+  let minutos = 0;
+  cachedTurnos.filter(t =>
+    String(t.id_usuario) === String(u.id) &&
+    t.fecha_inicio >= desde && t.fecha_inicio <= hasta
+  ).forEach(t => {
+    const entrada = msTurno(t.hora_entrada);
+    const salida = t.hora_salida == null ? NaN : msTurno(t.hora_salida);
+    if (Number.isFinite(entrada) && Number.isFinite(salida) && salida > entrada) {
+      minutos += (salida - entrada) / 60000;
+    } else if (t.hora_salida == null && Number.isFinite(entrada) && t.origen !== "whatsapp") {
+      minutos += Math.max(0, (Date.now() - entrada) / 60000);
+    } else if (t.hora_salida != null && t.horas_totales) {
+      minutos += Number(t.horas_totales) * 60;
+    }
+  });
+
+  if (tipo === "Gasolina") {
+    minutos += historialPlanta
+      .filter(p => p.fecha >= desde && p.fecha <= hasta)
+      .reduce((total,p) => total + Number(p.minutos || 0),0);
+  }
+
+  const horas = minutos / 60;
+  const semanas = Math.max(1, (Math.round(
+    (new Date(hasta) - new Date(desde)) / 86400000
+  ) + 1) / 7);
+  const tarifaAplicada = tipo === "Gasolina" ? 1.4 * 0.5 : tarifa;
+  const total = tipo === "Fijo" ? tarifa * semanas : horas * tarifaAplicada;
+  const texto =
+    "💰 *REPORTE DE PAGO – " + u.nombre.toUpperCase() + "*\\n" +
+    "📅 *Período:* " + formatFechaEsp(desde) + " al " + formatFechaEsp(hasta) + "\\n" +
+    "⏱️ *Total de horas trabajadas:* " + formatoHorasMinutos(minutos) + " h\\n" +
+    (tipo === "Fijo"
+      ? "💵 *Tarifa:* $" + tarifa.toFixed(2) + " por semana\\n"
+      : "💵 *Tarifa por hora:* $" + tarifaAplicada.toFixed(2) + "\\n") +
+    "💰 *Total a pagar:* $" + total.toFixed(2);
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(texto)
+      .then(() => alert("Reporte de pago de " + u.nombre + " copiado."))
+      .catch(() => window.prompt("Copia el reporte:", texto));
+  } else {
+    window.prompt("Copia el reporte:", texto);
+  }
 }
 
 function renderHistorialAdmin() {
