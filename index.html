@@ -400,7 +400,7 @@
   </style>
 
   <!-- ESTILOS MATRIX -->
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 
 <body>
@@ -484,24 +484,15 @@
   <!-- TRABAJADOR -->
   <div id="sec-trabajador" class="container hidden">
 
-    <div class="header-bar">
-      <div>
-        <div class="matrix-admin-brand">
-          ◈ TIME CONTROL
+    <div class="header-bar tc-neon-header tc-worker-header">
+      <div class="tc-brand-head">
+        <img class="tc-head-logo" src="logo-time-control.png" alt="Logo original Time Control">
+        <div class="tc-head-identity">
+          <div class="tc-neon-name"><span>TIME</span> <strong>CONTROL</strong></div>
+          <div class="tc-head-role" id="worker-title">Panel Trabajador</div>
+          <div class="tc-head-caption">Control de turnos</div>
         </div>
-
-        <h3
-          id="worker-title"
-          style="margin-bottom:0;text-align:left;"
-        >
-          Trabajador
-        </h3>
-
-        <small style="color:var(--text-muted)">
-          Panel de Control
-        </small>
       </div>
-
       <button
         onclick="logout()"
         class="btn-action btn-gray"
@@ -636,22 +627,18 @@
   <!-- ADMINISTRACIÓN -->
   <div id="sec-admin" class="container container-admin hidden">
 
-    <div class="header-bar">
-      <div>
-        <div class="matrix-admin-brand">
-          ◈ TIME CONTROL · MATRIX EDITION
+    <div class="header-bar tc-neon-header tc-admin-header">
+      <div class="tc-brand-head">
+        <img class="tc-head-logo" src="logo-time-control.png" alt="Logo original Time Control">
+        <div class="tc-head-identity">
+          <div class="tc-neon-name"><span>TIME</span> <strong>CONTROL</strong></div>
+          <div class="tc-head-role">Panel Administrador</div>
+          <div class="tc-head-caption">Control general de nómina y turnos</div>
         </div>
-
-        <h3>Panel de Administración</h3>
-
-        <small style="color:var(--text-muted)">
-          Control General de Nómina y Turnos
-        </small>
       </div>
-
-      <div class="flex-row" style="gap:5px;align-items:center;">
+      <div class="flex-row tc-head-actions" style="gap:5px;align-items:center;">
         <div class="tc-config-wrap">
-          <button type="button" class="btn-action btn-gray" onclick="tcToggleConfig()" aria-expanded="false" id="tc-config-toggle" style="width:auto;padding:6px 10px;font-size:.8rem;">⚙️ Configuración ▾</button>
+          <button type="button" class="tc-settings-trigger" onclick="tcToggleConfig()" aria-expanded="false" id="tc-config-toggle" title="Configuración" aria-label="Abrir configuración">⚙️</button>
           <div id="tc-config-menu" class="tc-config-menu hidden">
             <button type="button" onclick="tcCerrarConfig();openConfigTarifasModal()">💵 Tarifa global</button>
             <button type="button" onclick="tcCerrarConfig();openConfigPinModal()">🔑 Cambiar PIN</button>
@@ -662,7 +649,7 @@
 
         <button
           onclick="logout()"
-          class="btn-action btn-red"
+          class="btn-action btn-red tc-head-exit"
           style="width:auto;padding:6px 10px;font-size:0.8rem;"
         >
           Salir
