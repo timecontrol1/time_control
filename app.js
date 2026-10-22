@@ -430,7 +430,7 @@ function guardarTurnosLocales() {
   } catch (e) {}
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
   try {
     initMatrixEffect();
   } catch (e) {}
@@ -442,15 +442,21 @@ window.addEventListener("DOMContentLoaded", () => {
   setInterval(syncDataFromSupabase, 10000);
 
   try {
-    const savedUserId = null;
-
-    if (savedUserId) {
+    const savedUserId = sessionStorage.getItem("tc_user_id");
+    const savedPin = sessionStorage.getItem("tc_session_pin");
+    const ultimo = Number(sessionStorage.getItem("tc_last_activity") || 0);
+    if (savedUserId && savedPin && Date.now() - ultimo < 15 * 60000 && supabaseClient) {
+      const { data: usuarios, error } = await supabaseClient.from("usuarios").select("*");
+      if (error) throw error;
+      cachedUsers = usuarios || [];
       let found = cachedUsers.find(
-        (u) => String(u.id) === String(savedUserId)
+        (u) => String(u.id) === String(savedUserId) && String(u.pin) === savedPin
       );
 
       if (found) {
         currentUser = found;
+        pinSesionTurno = savedPin;
+        registrarPresencia().catch(console.warn);
 
         document
           .getElementById("sec-login")
@@ -493,8 +499,9 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     }
   } catch (e) {
-    localStorage.removeItem("active_user_id");
+    limpiarSesionLocal();
   }
+  iniciarControlInactividad();
 });
 
 function configurarRealtimeSupabase() {
@@ -785,10 +792,10 @@ async function login() {
   if (pInput === String(user.pin).trim()) {
     currentUser = user;
 pinSesionTurno = pInput;
-    localStorage.setItem(
-      "active_user_id",
-      user.id
-    );
+    localStorage.setItem("active_user_id", user.id);
+    sessionStorage.setItem("tc_user_id", String(user.id));
+    sessionStorage.setItem("tc_session_pin", pInput);
+    sessionStorage.setItem("tc_last_activity", String(Date.now()));
 
     document
       .getElementById("sec-login")
@@ -852,7 +859,7 @@ function logout() {
   currentUser = null;
   currentShift = null;
 pinSesionTurno = null;
-  localStorage.removeItem("active_user_id");
+  limpiarSesionLocal();
 
   document
     .getElementById("sec-admin")
@@ -2430,6 +2437,8 @@ async function guardarNuevoPinSeguro() {
     if (error) throw error;
 
     currentUser.pin = nuevo;
+    pinSesionTurno = nuevo;
+    sessionStorage.setItem("tc_session_pin", nuevo);
 
     closeModals();
     alert("PIN actualizado correctamente.");
@@ -3363,3 +3372,80 @@ if (document.readyState === "loading") {
 } else {
   ajustarAccesoSinEjemplos();
 }
+
+// Sesion del navegador: recargar no cierra; inactividad de 15 minutos si la pagina esta abierta.
+function limpiarSesionLocal() {
+  ["tc_user_id","tc_session_pin","tc_last_activity"].forEach(k => sessionStorage.removeItem(k));
+  localStorage.removeItem("active_user_id");
+}
+function iniciarControlInactividad() {
+  const registrar = () => {
+    if (currentUser) sessionStorage.setItem("tc_last_activity", String(Date.now()));
+  };
+  ["click","keydown","touchstart","scroll"].forEach(ev =>
+    document.addEventListener(ev, registrar, {passive:true}));
+  setInterval(() => {
+    if (!currentUser) return;
+    const ultimo = Number(sessionStorage.getItem("tc_last_activity") || 0);
+    if (Date.now() - ultimo >= 15 * 60000) {
+      logout();
+      alert("Sesion cerrada por 15 minutos sin actividad.");
+    }
+  }, 30000);
+}
+
+// Opcion independiente para modificar la clave especial.
+// Requiere la clave anterior y el PIN de acceso del administrador.
+function abrirCambioClaveEspecial() {
+  if (currentUser?.rol !== "admin") return;
+  document.getElementById("modal-clave-especial")?.remove();
+  const capa = document.createElement("div");
+  capa.id = "modal-clave-especial";
+  capa.style.cssText = "position:fixed;inset:0;z-index:100000;background:#000c;display:flex;align-items:center;justify-content:center;padding:12px";
+  capa.innerHTML = `<div style="width:min(440px,100%);background:#071c14;color:white;border:1px solid #26744d;border-radius:12px;padding:18px">
+    <h3>Cambiar clave especial de reportes</h3>
+    <p>La clave especial es distinta al PIN de inicio de sesión.</p>
+    <label>Clave especial anterior</label><input id="tc-old-special" type="password" inputmode="numeric" maxlength="6" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:7px 0 14px">
+    <label>Nueva clave especial (6 dígitos)</label><input id="tc-new-special" type="password" inputmode="numeric" maxlength="6" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:7px 0 14px">
+    <label>Confirmar nueva clave especial</label><input id="tc-confirm-special" type="password" inputmode="numeric" maxlength="6" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:7px 0 14px">
+    <div style="display:flex;gap:8px"><button type="button" id="tc-save-special" class="btn-action btn-blue">Guardar cambios</button><button type="button" id="tc-cancel-special" class="btn-action btn-red">Cancelar</button></div>
+  </div>`;
+  document.body.appendChild(capa);
+  capa.querySelector("#tc-cancel-special").onclick = () => capa.remove();
+  capa.querySelector("#tc-save-special").onclick = async () => {
+    const anterior = capa.querySelector("#tc-old-special").value;
+    const nueva = capa.querySelector("#tc-new-special").value;
+    const confirmar = capa.querySelector("#tc-confirm-special").value;
+    if (!/^\\d{6}$/.test(anterior) || !/^\\d{6}$/.test(nueva)) return alert("Ambas claves deben tener seis digitos.");
+    if (nueva !== confirmar) return alert("Las claves nuevas no coinciden.");
+    if (nueva === anterior) return alert("La nueva clave debe ser diferente.");
+    try {
+      const {data,error} = await supabaseClient.rpc("tc_cambiar_clave_especial",{
+        p_usuario:currentUser.usuario,p_pin_acceso:pinSesionTurno,
+        p_clave_anterior:anterior,p_clave_nueva:nueva
+      });
+      if(error) throw error;
+      if(data !== true) throw new Error("No se confirmo el cambio.");
+      capa.remove();
+      alert("Clave especial cambiada correctamente.");
+    } catch(e) { alert("No se pudo cambiar la clave: "+e.message); }
+  };
+}
+function instalarBotonClaveEspecial() {
+  if (currentUser?.rol !== "admin") return;
+  if (document.getElementById("tc-boton-cambiar-clave")) return;
+  const existente = document.querySelector('[onclick="openConfigPinModal()"]');
+  if (!existente) return;
+  const boton = document.createElement("button");
+  boton.id = "tc-boton-cambiar-clave";
+  boton.type = "button";
+  boton.className = existente.className;
+  boton.textContent = "🔐 Cambiar clave especial";
+  boton.onclick = abrirCambioClaveEspecial;
+  existente.insertAdjacentElement("afterend", boton);
+}
+const tcLoadAdminOriginal = loadAdminData;
+loadAdminData = function() {
+  tcLoadAdminOriginal();
+  instalarBotonClaveEspecial();
+};
