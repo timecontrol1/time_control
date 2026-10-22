@@ -649,22 +649,16 @@
         </small>
       </div>
 
-      <div class="flex-row" style="gap:5px;">
-        <button
-          onclick="openConfigTarifasModal()"
-          class="btn-action btn-gray"
-          style="width:auto;padding:6px 10px;font-size:0.8rem;"
-        >
-          ⚙️ Tarifa Global
-        </button>
-
-        <button
-          onclick="openConfigPinModal()"
-          class="btn-action btn-gray"
-          style="width:auto;padding:6px 10px;font-size:0.8rem;"
-        >
-          PIN
-        </button>
+      <div class="flex-row" style="gap:5px;align-items:center;">
+        <div class="tc-config-wrap">
+          <button type="button" class="btn-action btn-gray" onclick="tcToggleConfig()" aria-expanded="false" id="tc-config-toggle" style="width:auto;padding:6px 10px;font-size:.8rem;">⚙️ Configuración ▾</button>
+          <div id="tc-config-menu" class="tc-config-menu hidden">
+            <button type="button" onclick="tcCerrarConfig();openConfigTarifasModal()">💵 Tarifa global</button>
+            <button type="button" onclick="tcCerrarConfig();openConfigPinModal()">🔑 Cambiar PIN</button>
+            <button type="button" onclick="tcCerrarConfig();abrirCambioClaveEspecial()">🔐 Cambiar clave especial</button>
+            <button type="button" onclick="tcCerrarConfig();tcAbrirAuditoria()">📋 Auditoría</button>
+          </div>
+        </div>
 
         <button
           onclick="logout()"
@@ -1318,6 +1312,23 @@
           Cerrar
         </button>
       </div>
+    </div>
+  </div>
+
+  <div id="tc-modal-auditoria" class="modal-backdrop hidden" style="display:none;z-index:10020;">
+    <div class="modal-content" style="max-width:850px;width:94%;max-height:88vh;overflow:auto;box-sizing:border-box;">
+      <h3>📋 Auditoría de movimientos</h3>
+      <p style="font-size:.85rem;">Registro de cambios desde la activación de la auditoría. Las horas se muestran en Venezuela.</p>
+      <label>Clave especial de administración</label>
+      <input type="password" id="tc-audit-clave" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="6 dígitos" style="width:100%;box-sizing:border-box;" />
+      <div class="flex-row" style="gap:8px;margin:10px 0;">
+        <button class="btn-action" onclick="tcCargarAuditoria()">Consultar</button>
+        <button class="btn-action btn-gray" onclick="tcCerrarAuditoria()">Cerrar</button>
+      </div>
+      <div class="flex-row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <input id="tc-audit-filtro" placeholder="Filtrar por número, trabajador o acción" oninput="tcFiltrarAuditoria()" style="flex:1;min-width:180px;" />
+      </div>
+      <div id="tc-audit-resultado" style="max-height:48vh;overflow:auto;overflow-wrap:anywhere;"></div>
     </div>
   </div>
 

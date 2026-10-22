@@ -416,3 +416,13 @@ tbody tr:hover {
     transition: none !important;
   }
 }
+
+/* Menú de configuración administrativa */
+.tc-config-wrap{position:relative;display:inline-block}
+.tc-config-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:215px;z-index:1000;background:#0b2119;border:1px solid #315c49;border-radius:10px;padding:6px;box-shadow:0 12px 28px #0009}
+.tc-config-menu.hidden{display:none!important}
+.tc-config-menu button{display:block;width:100%;padding:12px 10px;text-align:left;background:transparent;color:#e9fff3;border:0;border-radius:7px;font:inherit;cursor:pointer}
+.tc-config-menu button:hover,.tc-config-menu button:focus{background:#194633}
+.tc-audit-item{border:1px solid #315c49;border-radius:9px;padding:10px;margin:8px 0;background:#091b14}
+.tc-audit-item summary{cursor:pointer;font-size:.88rem}
+.tc-audit-item pre{white-space:pre-wrap;word-break:break-word;font-size:.75rem;line-height:1.45}

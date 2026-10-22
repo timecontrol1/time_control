@@ -3447,5 +3447,59 @@ function instalarBotonClaveEspecial() {
 const tcLoadAdminOriginal = loadAdminData;
 loadAdminData = function() {
   tcLoadAdminOriginal();
-  instalarBotonClaveEspecial();
 };
+
+// Configuración agrupada y auditoría: no cambia la lógica de los reportes.
+function tcToggleConfig() {
+  if (currentUser?.rol !== 'admin') return;
+  const menu=document.getElementById('tc-config-menu');
+  const abierto=!menu.classList.contains('hidden');
+  menu.classList.toggle('hidden',abierto);
+  document.getElementById('tc-config-toggle')?.setAttribute('aria-expanded',String(!abierto));
+}
+function tcCerrarConfig(){
+  document.getElementById('tc-config-menu')?.classList.add('hidden');
+  document.getElementById('tc-config-toggle')?.setAttribute('aria-expanded','false');
+}
+document.addEventListener('click',function(e){if(!e.target.closest('.tc-config-wrap'))tcCerrarConfig();});
+function tcAbrirAuditoria(){
+  if(currentUser?.rol!=='admin')return;
+  const m=document.getElementById('tc-modal-auditoria');
+  m.classList.remove('hidden');m.style.display='flex';
+  document.getElementById('tc-audit-resultado').textContent='Introduce tu clave especial para consultar el historial.';
+  document.getElementById('tc-audit-clave').value='';
+}
+function tcCerrarAuditoria(){
+  const m=document.getElementById('tc-modal-auditoria');m.classList.add('hidden');m.style.display='none';
+  document.getElementById('tc-audit-clave').value='';
+  window.tcAuditRows=[];
+  document.getElementById('tc-audit-resultado').replaceChildren();
+}
+async function tcCargarAuditoria(){
+  if(currentUser?.rol!=='admin'||!supabaseClient)return;
+  const clave=document.getElementById('tc-audit-clave').value.trim();
+  if(!/^\d{6}$/.test(clave))return alert('Introduce la clave especial de seis dígitos.');
+  const out=document.getElementById('tc-audit-resultado');out.textContent='Consultando auditoría…';
+  try{
+    const {data,error}=await supabaseClient.rpc('tc_consultar_auditoria',{p_usuario:currentUser.usuario,p_clave:clave,p_limite:250});
+    if(error)throw error;
+    window.tcAuditRows=data||[];
+    document.getElementById('tc-audit-clave').value='';
+    tcFiltrarAuditoria();
+  }catch(e){out.textContent='No se pudo consultar: '+e.message;}
+}
+function tcFiltrarAuditoria(){
+  const out=document.getElementById('tc-audit-resultado');out.replaceChildren();
+  const filtro=(document.getElementById('tc-audit-filtro').value||'').toLowerCase();
+  const rows=(window.tcAuditRows||[]).filter(r=>JSON.stringify(r).toLowerCase().includes(filtro));
+  if(!rows.length){out.textContent='No hay movimientos que coincidan con el filtro.';return;}
+  for(const r of rows){
+    const card=document.createElement('details');card.className='tc-audit-item';
+    const sum=document.createElement('summary');
+    const fecha=new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',dateStyle:'short',timeStyle:'short'}).format(new Date(r.registrado_en));
+    const accion={INSERT:'Creación',UPDATE:'Modificación',DELETE:'Eliminación'}[r.accion]||r.accion;
+    sum.textContent=`${fecha} · ${accion} · ${r.tabla} · ${r.numero_reporte!=null?'#'+String(r.numero_reporte).padStart(6,'0'):'ID '+r.registro_id}`;
+    const info=document.createElement('pre');info.textContent='Responsable identificado: '+(r.actor||'No identificado')+'\nAntes: '+JSON.stringify(r.datos_antes,null,2)+'\nDespués: '+JSON.stringify(r.datos_despues,null,2);
+    card.append(sum,info);out.append(card);
+  }
+}
