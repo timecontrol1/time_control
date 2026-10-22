@@ -473,3 +473,11 @@ tbody tr:hover {
 #sec-login .form-group { margin-bottom:15px; }
 #sec-login input { font-size:16px; }
 @media(max-width:560px) { #sec-login .matrix-login-hero { max-height:min(72vw,360px); } }
+
+/* Logo neón integrado: sin fondo cuadrado ni marco separado */
+#sec-login.matrix-login {background:rgba(0,14,8,.42)!important;border-color:rgba(42,255,119,.25)!important;box-shadow:none!important;overflow:visible!important}
+#sec-login .matrix-brand-full {margin:-12px -14px 7px!important;position:relative;isolation:isolate}
+#sec-login .matrix-brand-full::before {content:"";position:absolute;inset:5% 6% 7%;background:radial-gradient(ellipse at 50% 42%,rgba(5,255,84,.12),transparent 67%);z-index:-1;pointer-events:none}
+#sec-login .matrix-login-hero {width:100%!important;max-height:none!important;height:auto!important;object-fit:contain!important;border-radius:0!important;filter:drop-shadow(0 0 11px rgba(18,255,103,.42)) drop-shadow(0 0 25px rgba(0,255,88,.14))!important}
+#sec-login .matrix-brand-subtitle {padding:0 5px 13px!important}
+@media(max-width:560px){#sec-login .matrix-login-hero{max-height:none!important}}
