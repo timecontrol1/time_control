@@ -3416,7 +3416,7 @@ function abrirCambioClaveEspecial() {
     const anterior = capa.querySelector("#tc-old-special").value;
     const nueva = capa.querySelector("#tc-new-special").value;
     const confirmar = capa.querySelector("#tc-confirm-special").value;
-    if (!/^\\d{6}$/.test(anterior) || !/^\\d{6}$/.test(nueva)) return alert("Ambas claves deben tener seis digitos.");
+    if (!/^\d{6}$/.test(anterior) || !/^\d{6}$/.test(nueva)) return alert("Ambas claves deben tener seis digitos.");
     if (nueva !== confirmar) return alert("Las claves nuevas no coinciden.");
     if (nueva === anterior) return alert("La nueva clave debe ser diferente.");
     try {
