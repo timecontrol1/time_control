@@ -481,3 +481,61 @@ tbody tr:hover {
 #sec-login .matrix-login-hero {width:100%!important;max-height:none!important;height:auto!important;object-fit:contain!important;border-radius:0!important;filter:drop-shadow(0 0 11px rgba(18,255,103,.42)) drop-shadow(0 0 25px rgba(0,255,88,.14))!important}
 #sec-login .matrix-brand-subtitle {padding:0 5px 13px!important}
 @media(max-width:560px){#sec-login .matrix-login-hero{max-height:none!important}}
+
+/* Portada neon intensa integrada al fondo Matrix animado */
+#sec-login.matrix-login {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 12px 24px !important;
+  overflow: visible !important;
+}
+#sec-login .matrix-brand-full {
+  width: calc(100% + 24px) !important;
+  margin: -8px -12px 4px !important;
+  padding: 0 !important;
+}
+#sec-login .matrix-login-hero {
+  display:block !important;
+  width:100% !important;
+  height:auto !important;
+  max-height:none !important;
+  border:0 !important;
+  border-radius:0 !important;
+  filter: drop-shadow(0 0 9px rgba(0,255,77,.65)) !important;
+}
+#sec-login .matrix-brand-subtitle {display:none !important;}
+#sec-login .form-group {margin-bottom:14px !important; position:relative;}
+#sec-login .form-group label {
+  position:absolute !important; width:1px !important; height:1px !important;
+  overflow:hidden !important; clip:rect(0,0,0,0) !important; white-space:nowrap !important;
+}
+#sec-login .form-group::before {
+  content:"♙";position:absolute;top:50%;left:18px;transform:translateY(-50%);
+  font-size:25px;color:#13ff8a;z-index:2;pointer-events:none;
+  text-shadow:0 0 8px rgba(0,255,111,.7);
+}
+#sec-login .form-group:has(#login-pin)::before {content:"♙";font-size:0;width:19px;height:23px;
+  border:2px solid #1cff91;border-radius:4px;left:19px;top:57%;box-sizing:border-box;}
+#sec-login .form-group:has(#login-pin)::after {content:"";position:absolute;width:11px;height:10px;border:2px solid #1cff91;border-bottom:0;border-radius:8px 8px 0 0;top:20%;left:23px;pointer-events:none;}
+#sec-login input {
+  box-sizing:border-box !important;
+  padding:16px 14px 16px 56px !important;
+  border:1px solid #00ed79 !important;
+  border-radius:12px !important;
+  background:rgba(0,23,15,.83) !important;
+  color:#d8ffe8 !important;
+  min-height:54px;
+  box-shadow:inset 0 0 15px rgba(0,255,102,.045);
+}
+#sec-login input:focus {border-color:#70ffb5 !important;box-shadow:0 0 17px rgba(0,255,100,.25) !important;}
+#sec-login button {
+  background:linear-gradient(90deg,#00f18b,#32ff9b,#00ee78) !important;
+  color:#00160c !important;
+  border:1px solid #a1ffcc !important;
+  border-radius:12px !important;
+  box-shadow:0 0 18px rgba(0,255,110,.42) !important;
+  font-weight:800 !important;
+  min-height:53px;
+}
+#sec-login .matrix-login-footer {color:#c3ffdb !important;text-shadow:0 0 7px rgba(0,255,112,.3);}
