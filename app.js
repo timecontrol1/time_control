@@ -101,18 +101,10 @@ function iniciarRelojEnVivo() {
   setInterval(actualizarReloj, 1000);
 }
 
-// ID visible: inicial del trabajador + ID de Supabase
-function codigoTurno(nombre, id) {
-  const inicial = (
-    String(nombre || "T")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .match(/[A-Za-z]/)?.[0] || "T"
-  ).toUpperCase();
-
-  return id == null || id === ""
-    ? "(pendiente)"
-    : `#${inicial}${String(id).padStart(5, "0")}`;
+// Numero global consecutivo compartido entre turnos y planta electrica.
+function codigoTurno(nombre, numero) {
+  return numero == null || numero === "" ? "(pendiente)" :
+    `#${String(numero).padStart(6, "0")}`;
 }
 
 function msTurno(valor) {
@@ -1029,7 +1021,7 @@ async function ejecutarToggleTurno() {
         "",
         "",
         anteriores.length > 0,
-        data.id
+        data.numero_reporte
       );
     } else {
       const hrs = Math.max(
@@ -1080,7 +1072,7 @@ async function ejecutarToggleTurno() {
         ahora,
         `${formatoHorasDecimales(hrs)} h`,
         previos.length > 0,
-        turno.id
+        turno.numero_reporte
       );
     }
   } catch (e) {
@@ -1156,7 +1148,7 @@ function renderTablaTrabajador() {
         ? `${formatoHorasMinutos(minsTurno)} h`
         : `${Math.round(minsTurno)} min`;
 
-    const codigo = codigoTurno(currentUser.nombre, t.id);
+    const codigo = codigoTurno(currentUser.nombre, t.numero_reporte);
 
     const tr = document.createElement("tr");
 
@@ -1470,12 +1462,12 @@ function calcularPagoIndividual(usuarioId) {
     } else if (!abierta && t.horas_totales) {
       minutos = Number(t.horas_totales) * 60;
     }
-    return {fecha:t.fecha_inicio,entrada,salida,abierta,minutos};
+    return {numero:t.numero_reporte,fecha:t.fecha_inicio,entrada,salida,abierta,minutos};
   }).sort((a,b) => (a.entrada || 0) - (b.entrada || 0));
   if (tipo === "Gasolina") {
     historialPlanta.filter(p => p.fecha >= desde && p.fecha <= hasta).forEach(p => {
       jornadas.push({fecha:p.fecha, entrada:msTurno(p.inicio),salida:msTurno(p.fin),
-        abierta:false,minutos:Number(p.minutos || 0),planta:true});
+        abierta:false,minutos:Number(p.minutos || 0),planta:true,numero:p.numero_reporte});
     });
     jornadas.sort((a,b) => (a.entrada || 0) - (b.entrada || 0));
   }
@@ -1521,6 +1513,7 @@ function verDetallesPagoIndividual(usuarioId) {
     timeZone:"America/Caracas",hour:"2-digit",minute:"2-digit",hour12:true
   }).format(new Date(n)) : "—";
   const filas = p.jornadas.map(j => `<tr>
+    <td style="padding:8px;border-bottom:1px solid #254534;">${htmlSeguro(codigoTurno("", j.numero))}</td>
     <td style="padding:8px;border-bottom:1px solid #254534;">${htmlSeguro(formatFechaEsp(j.fecha))}${j.planta ? " ⚡" : ""}</td>
     <td style="padding:8px;border-bottom:1px solid #254534;">${hora(j.entrada)}</td>
     <td style="padding:8px;border-bottom:1px solid #254534;">${j.abierta ? "🟢 En curso" : hora(j.salida)}</td>
@@ -1531,8 +1524,8 @@ function verDetallesPagoIndividual(usuarioId) {
     <button id="cerrar-detalle-pago" class="btn-icon" aria-label="Cerrar">✖</button></div>
     <p>📅 ${formatFechaEsp(p.desde)} al ${formatFechaEsp(p.hasta)}</p>
     <div style="overflow-x:auto;"><table style="width:100%;font-size:0.9rem;border-collapse:collapse;">
-    <thead><tr><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr></thead>
-    <tbody>${filas || '<tr><td colspan="4" style="padding:12px;">No hay jornadas registradas.</td></tr>'}</tbody></table></div>
+    <thead><tr><th>N.º</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Horas</th></tr></thead>
+    <tbody>${filas || '<tr><td colspan="5" style="padding:12px;">No hay jornadas registradas.</td></tr>'}</tbody></table></div>
     <p><strong>Total trabajado:</strong> ${formatoHorasMinutos(p.minutos)} h</p>
     <p><strong>Tarifa:</strong> $${(p.tipo === "Fijo" ? p.tarifa : p.tarifaAplicada).toFixed(2)} ${p.tipo === "Fijo" ? "por semana" : "por hora"}</p>
     <p><strong>Total a pagar:</strong> $${p.total.toFixed(2)}</p>
@@ -1572,8 +1565,8 @@ function renderHistorialAdmin() {
       if (consulta) {
         const trabajador = cachedUsers.find(u => String(u.id) === String(t.id_usuario));
         const nombre = String(trabajador?.nombre || "").toLowerCase();
-        const numero = String(t.id ?? "").padStart(5, "0");
-        const anterior = codigoTurno(trabajador?.nombre, t.id).toLowerCase().replace(/^#/, "");
+        const numero = String(t.numero_reporte ?? "").padStart(6, "0");
+        const anterior = codigoTurno(trabajador?.nombre, t.numero_reporte).toLowerCase().replace(/^#/, "");
         if (!nombre.includes(consulta) && !numero.includes(consulta) &&
             !String(t.id).includes(consulta) && !anterior.includes(consulta)) return false;
       }
@@ -1613,7 +1606,7 @@ function renderHistorialAdmin() {
       ? userObj.nombre
       : "Desconocido";
 
-    const codigo = `#${String(t.id).padStart(5, "0")}`;
+    const codigo = codigoTurno(nombreUsuario, t.numero_reporte);
 
     const entMs = msTurno(t.hora_entrada);
     const salMs = t.hora_salida
@@ -1719,7 +1712,7 @@ function copiarTurnoAdmin(idTurno) {
   copiarReportePortapapeles(u?.nombre || "Trabajador", terminado ? "FIN" : "INICIO",
     t.fecha_inicio, t.hora_entrada,
     terminado ? fechaVenezuelaDesdeMs(msTurno(t.hora_salida)) : "",
-    terminado ? t.hora_salida : "", duracion, false, t.id);
+    terminado ? t.hora_salida : "", duracion, false, t.numero_reporte);
 }
 
 window.abrirModalEditarTurno = function (idTurno) {
