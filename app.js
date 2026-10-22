@@ -1356,8 +1356,8 @@ const totalHoras =
     tr.innerHTML = `
       <td>
         <strong>${htmlSeguro(u.nombre)}</strong>
-        <div style="font-size:.75rem;font-weight:700;color:${trabajandoIds.has(String(u.id)) ? "#34d399" : "#94a3b8"}">
-          ${trabajandoIds.has(String(u.id)) ? "🟢 Trabajando" : "⚪ Fuera de turno"}
+        <div style="font-size:.75rem;font-weight:700;color:${trabajandoIds.has(String(u.id)) ? "#22c55e" : "#ef4444"}">
+          ${trabajandoIds.has(String(u.id)) ? "🟢 Trabajando" : "🔴 Fuera de turno"}
         </div>
         <div style="font-size:.72rem;color:${
           conectados.has(String(u.id))
@@ -1680,18 +1680,18 @@ function renderHistorialAdmin() {
         <div class="actions-cell">
           ${botonesForzar}
           <button onclick="copiarTurnoAdmin(${t.id})" class="btn-action btn-blue"
-            style="padding:6px 9px;font-size:.9rem;" title="Copiar reporte" aria-label="Copiar reporte">📋</button>
+            style="padding:5px 7px;font-size:.9rem;min-width:32px;" title="Copiar reporte" aria-label="Copiar reporte">📋</button>
 
           <button
             onclick="window.abrirModalEditarTurno(${t.id})"
             class="btn-action btn-blue"
-            style="padding:6px 9px;font-size:.9rem;"
+            style="padding:5px 7px;font-size:.9rem;min-width:32px;"
            title="Editar reporte" aria-label="Editar reporte">✏️</button>
 
           <button
             onclick="borrarTurnoUnico(${t.id})"
             class="btn-action btn-red"
-            style="padding:6px 9px;font-size:.9rem;"
+            style="padding:5px 7px;font-size:.9rem;min-width:32px;"
            title="Eliminar reporte" aria-label="Eliminar reporte">🗑️</button>
         </div>
       </td>
@@ -1783,7 +1783,7 @@ async function guardarEdicionTurno() {
     if (Number(data) !== idTurno) throw new Error("Supabase no confirmó la edición.");
     cerrarModalEditarTurno();
     await syncDataFromSupabase();
-    alert(`Reporte #${String(idTurno).padStart(5,"0")} actualizado correctamente.`);
+    alert(`Reporte ${codigoTurno("", t.numero_reporte)} actualizado correctamente.`);
   } catch(e) { alert("No se pudo editar: " + e.message); }
 }
 
@@ -1794,7 +1794,7 @@ async function borrarTurnoUnico(idTurno) {
     alert("No se pueden borrar turnos abiertos."); return;
   }
   const u = cachedUsers.find(x => Number(x.id) === Number(t.id_usuario));
-  const numero = `#${String(idTurno).padStart(5,"0")}`;
+  const numero = codigoTurno("", t.numero_reporte);
   if (!confirm(`¿Borrar definitivamente el reporte ${numero} de ${u?.nombre || "Trabajador"}?\nEsta acción quedará registrada en auditoría.`)) return;
   const clave = obtenerClaveCorreccion();
   if (!clave) return;
@@ -3244,11 +3244,11 @@ renderHistorialAdmin = function () {
       </td>
       <td>
         <div class="actions-cell">
-          <button class="btn-action btn-blue" style="padding:6px 9px;"
+          <button class="btn-action btn-blue" style="padding:5px 7px;min-width:32px;"
             onclick="copiarReportePlanta(${Number(p.numero_reporte)})" title="Copiar reporte" aria-label="Copiar reporte">📋</button>
-          <button class="btn-action btn-blue" style="padding:6px 9px;"
+          <button class="btn-action btn-blue" style="padding:5px 7px;min-width:32px;"
             onclick="editarReportePlanta(${Number(p.numero_reporte)})" title="Editar reporte" aria-label="Editar reporte">✏️</button>
-          <button class="btn-action btn-red" style="padding:6px 9px;"
+          <button class="btn-action btn-red" style="padding:5px 7px;min-width:32px;"
             onclick="borrarReportePlanta(${Number(p.numero_reporte)})" title="Eliminar reporte" aria-label="Eliminar reporte">🗑️</button>
         </div>
       </td>
@@ -3340,4 +3340,26 @@ async function borrarReportePlanta(numero) {
     await cargarPlantaAutomaticamente();
     alert("Reporte de planta eliminado.");
   } catch(e) { alert("No se pudo eliminar el reporte: "+e.message); }
+}
+
+
+// Ajustes de privacidad de la pantalla de acceso.
+function ajustarAccesoSinEjemplos() {
+  const usuario = document.getElementById("login-usuario");
+  const pin = document.getElementById("login-pin");
+  if (usuario) {
+    usuario.placeholder = "";
+    const label = document.querySelector('label[for="login-usuario"]');
+    if (label) label.textContent = "Usuario";
+  }
+  if (pin) {
+    pin.placeholder = "";
+    const label = document.querySelector('label[for="login-pin"]');
+    if (label) label.textContent = "Contraseña";
+  }
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", ajustarAccesoSinEjemplos);
+} else {
+  ajustarAccesoSinEjemplos();
 }
