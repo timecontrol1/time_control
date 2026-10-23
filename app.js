@@ -3488,18 +3488,76 @@ async function tcCargarAuditoria(){
     tcFiltrarAuditoria();
   }catch(e){out.textContent='No se pudo consultar: '+e.message;}
 }
+// Vista descriptiva de auditoría. Solo interpreta los datos ya guardados.
+function tcAuditAccion(r) {
+  const a=r.datos_antes||{}, d=r.datos_despues||{};
+  if(r.tabla==='registros_turnos') {
+    if(r.accion==='INSERT') return d.estado==='completado' ? 'Turno registrado' : 'Turno iniciado';
+    if(r.accion==='DELETE') return 'Reporte de turno eliminado';
+    if(r.accion==='UPDATE') {
+      const finalAntes=a.estado==='completado'||a.hora_salida!=null;
+      const finalDespues=d.estado==='completado'||d.hora_salida!=null;
+      if(!finalAntes&&finalDespues) return 'Turno finalizado';
+      if(finalAntes&&!finalDespues) return 'Turno reabierto';
+      return 'Reporte de turno editado';
+    }
+  }
+  if(r.tabla==='reportes_planta') return ({INSERT:'Reporte de planta agregado',UPDATE:'Reporte de planta editado',DELETE:'Reporte de planta eliminado'})[r.accion]||'Cambio en planta';
+  if(r.tabla==='usuarios') {
+    if(r.accion==='INSERT') return 'Usuario agregado';
+    if(r.accion==='DELETE') return 'Usuario eliminado';
+    if(r.accion==='UPDATE') {
+      const cambios=Object.keys(d).filter(k=>JSON.stringify(a[k])!==JSON.stringify(d[k]));
+      if(cambios.length===1&&cambios[0]==='pin_modificado')return 'PIN actualizado';
+      if(cambios.length===1&&['tarifa','tarifa_hora'].includes(cambios[0]))return 'Tarifa modificada';
+      return d.pin_modificado?'Usuario editado y PIN actualizado':'Datos de usuario editados';
+    }
+  }
+  return ({INSERT:'Registro agregado',UPDATE:'Registro editado',DELETE:'Registro eliminado'})[r.accion]||String(r.accion);
+}
+function tcAuditTextoValor(campo,v) {
+  if(v===undefined||v===null||v==='')return 'Sin dato';
+  if(['hora_entrada','hora_salida'].includes(campo)&&typeof v==='number'&&v>1000000000){
+    const ms=v<100000000000?v*1000:v;
+    return new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',dateStyle:'short',timeStyle:'short'}).format(new Date(ms));
+  }
+  if(typeof v==='boolean')return v?'Sí':'No';
+  if(typeof v==='object')return JSON.stringify(v);
+  return String(v);
+}
 function tcFiltrarAuditoria(){
   const out=document.getElementById('tc-audit-resultado');out.replaceChildren();
-  const filtro=(document.getElementById('tc-audit-filtro').value||'').toLowerCase();
-  const rows=(window.tcAuditRows||[]).filter(r=>JSON.stringify(r).toLowerCase().includes(filtro));
+  const filtro=(document.getElementById('tc-audit-filtro').value||'').toLocaleLowerCase('es').trim();
+  const rows=(window.tcAuditRows||[]).filter(r=>(JSON.stringify(r)+' '+tcAuditAccion(r)).toLocaleLowerCase('es').includes(filtro));
   if(!rows.length){out.textContent='No hay movimientos que coincidan con el filtro.';return;}
+  const nombres={estado:'Estado',fecha_inicio:'Fecha de inicio',fecha_fin:'Fecha de fin',hora_entrada:'Hora de entrada',hora_salida:'Hora de salida',horas_totales:'Horas trabajadas',tarifa:'Tarifa',tarifa_hora:'Tarifa por hora',nombre:'Nombre',usuario:'Usuario',cargo:'Cargo',tipo_pago:'Tipo de pago',id_usuario:'ID del trabajador',origen:'Origen',descripcion:'Descripción',observacion:'Observación',monto:'Monto'};
   for(const r of rows){
     const card=document.createElement('details');card.className='tc-audit-item';
+    card.style.cssText='max-width:100%;min-width:0;overflow-wrap:anywhere';
     const sum=document.createElement('summary');
     const fecha=new Intl.DateTimeFormat('es-VE',{timeZone:'America/Caracas',dateStyle:'short',timeStyle:'short'}).format(new Date(r.registrado_en));
-    const accion={INSERT:'Creación',UPDATE:'Modificación',DELETE:'Eliminación'}[r.accion]||r.accion;
-    sum.textContent=`${fecha} · ${accion} · ${r.tabla} · ${r.numero_reporte!=null?'#'+String(r.numero_reporte).padStart(6,'0'):'ID '+r.registro_id}`;
-    const info=document.createElement('pre');info.textContent='Responsable identificado: '+(r.actor||'No identificado')+'\nAntes: '+JSON.stringify(r.datos_antes,null,2)+'\nDespués: '+JSON.stringify(r.datos_despues,null,2);
+    const ref=r.numero_reporte!=null?'#'+String(r.numero_reporte).padStart(6,'0'):'ID '+r.registro_id;
+    sum.textContent=tcAuditAccion(r)+' · '+ref+' · '+fecha;
+    const info=document.createElement('div');info.style.cssText='padding:10px 2px 2px;line-height:1.65;font-size:.83rem;white-space:normal;overflow-wrap:anywhere';
+    function linea(t){const el=document.createElement('div');el.textContent=t;info.append(el);}
+    const actor=String(r.actor||'').trim();
+    linea('Responsable: '+(!actor||actor==='sistema/no identificado'||actor==='sistema'?'No identificado (registro automático) ':actor));
+    const a=r.datos_antes||{},d=r.datos_despues||{};
+    const afectado=d.nombre||a.nombre||d.usuario||a.usuario;
+    if(afectado)linea('Persona afectada: '+afectado);
+    else if((d.id_usuario||a.id_usuario)!=null)linea('ID del trabajador: '+(d.id_usuario||a.id_usuario));
+    if(r.tabla==='reportes_planta')linea('Sección: Planta eléctrica');
+    const omitidos=new Set(['pin','pin_modificado','id','numero_reporte','created_at','updated_at']);
+    const campos=[...new Set([...Object.keys(a),...Object.keys(d)])].filter(k=>!omitidos.has(k));
+    const cambios=r.accion==='UPDATE'?campos.filter(k=>JSON.stringify(a[k])!==JSON.stringify(d[k])):campos;
+    if(d.pin_modificado)linea('PIN: actualizado (valor protegido)');
+    if(!cambios.length&&!d.pin_modificado)linea('No hay otros cambios visibles.');
+    for(const k of cambios){
+      const titulo=nombres[k]||k.replace(/_/g,' ');
+      if(r.accion==='INSERT')linea(titulo+': '+tcAuditTextoValor(k,d[k]));
+      else if(r.accion==='DELETE')linea(titulo+': '+tcAuditTextoValor(k,a[k]));
+      else linea(titulo+': '+tcAuditTextoValor(k,a[k])+' → '+tcAuditTextoValor(k,d[k]));
+    }
     card.append(sum,info);out.append(card);
   }
 }
