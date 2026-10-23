@@ -3540,14 +3540,18 @@ function tcFiltrarAuditoria(){
     sum.textContent=tcAuditAccion(r)+' · '+ref+' · '+fecha;
     const info=document.createElement('div');info.style.cssText='padding:10px 2px 2px;line-height:1.65;font-size:.83rem;white-space:normal;overflow-wrap:anywhere';
     function linea(t){const el=document.createElement('div');el.textContent=t;info.append(el);}
-    const actor=String(r.actor||'').trim();
-    linea('Responsable: '+(!actor||actor==='sistema/no identificado'||actor==='sistema'?'No identificado (registro automático) ':actor));
     const a=r.datos_antes||{},d=r.datos_despues||{};
-    const afectado=d.nombre||a.nombre||d.usuario||a.usuario;
-    if(afectado)linea('Persona afectada: '+afectado);
-    else if((d.id_usuario||a.id_usuario)!=null)linea('ID del trabajador: '+(d.id_usuario||a.id_usuario));
+    const actor=String(r.actor||'').trim();
+    const actorDesconocido=!actor||actor==='sistema/no identificado'||actor==='sistema';
+    const soloAdmin=r.accion==='DELETE'&&['registros_turnos','reportes_planta'].includes(r.tabla);
+    linea('Responsable: '+(actorDesconocido?(soloAdmin?'Administrador (operación reservada al administrador)':'No identificado en el registro histórico'):actor));
+    const idAfectado=d.id_usuario??a.id_usuario;
+    const usuarioRelacionado=idAfectado==null?null:cachedUsers.find(u=>String(u.id)===String(idAfectado));
+    const afectado=d.nombre||a.nombre||usuarioRelacionado?.nombre||d.usuario||a.usuario;
+    if(afectado)linea((r.tabla==='registros_turnos'?'Trabajador: ':'Persona afectada: ')+afectado);
+    else if(idAfectado!=null)linea('Trabajador (ID): '+idAfectado+' — nombre no disponible');
     if(r.tabla==='reportes_planta')linea('Sección: Planta eléctrica');
-    const omitidos=new Set(['pin','pin_modificado','id','numero_reporte','created_at','updated_at']);
+    const omitidos=new Set(['pin','pin_modificado','id','id_usuario','numero_reporte','created_at','updated_at']);
     const campos=[...new Set([...Object.keys(a),...Object.keys(d)])].filter(k=>!omitidos.has(k));
     const cambios=r.accion==='UPDATE'?campos.filter(k=>JSON.stringify(a[k])!==JSON.stringify(d[k])):campos;
     if(d.pin_modificado)linea('PIN: actualizado (valor protegido)');
