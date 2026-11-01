@@ -1817,51 +1817,39 @@ async function borrarTurnoUnico(idTurno) {
 }
 
 async function forzarSalida(idTurno) {
-  if (!confirm("¿Forzar salida de este turno activo?")) return;
-
-  const t = cachedTurnos.find(
-    (x) => String(x.id) === String(idTurno)
-  );
-
-  if (!t || t.hora_salida) {
-    alert("El turno ya está cerrado o no existe.");
-    return;
+  if (!currentUser || currentUser.rol !== "admin") {
+    alert("Solo el administrador puede forzar la salida."); return;
   }
-
-  if (!supabaseClient) {
-    alert("Sin conexión con Supabase.");
-    return;
+  if (!supabaseClient) { alert("Sin conexión con Supabase."); return; }
+  const t = cachedTurnos.find(x => String(x.id) === String(idTurno));
+  if (!t || t.hora_salida != null) {
+    alert("El turno ya está cerrado o no existe."); return;
   }
-
-  const ahora = Date.now();
-  const entrada = msTurno(t.hora_entrada);
-  const horas = Math.max(0, (ahora - entrada) / 3600000);
-
+  if (!pinSesionTurno) {
+    alert("Inicia sesión nuevamente para confirmar tu identidad."); return;
+  }
+  if (!confirm("¿Forzar salida de este turno activo? Se usará la hora actual del servidor.")) return;
+  const clave = obtenerClaveCorreccion();
+  if (!clave) return;
   try {
-    const { data, error } = await supabaseClient
-      .from("registros_turnos")
-      .update({
-        hora_salida: ahora,
-        horas_totales: Number(horas.toFixed(4)),
-        estado: "completado"
-      })
-      .eq("id", idTurno)
-      .is("hora_salida", null)
-      .select();
-
+    const { data, error } = await supabaseClient.rpc("tc_forzar_salida_admin", {
+      p_usuario: currentUser.usuario,
+      p_pin: pinSesionTurno,
+      p_clave: clave,
+      p_turno_id: Number(idTurno)
+    });
     if (error) throw error;
-    if (!data || data.length !== 1) {
-      throw new Error(
-        "Supabase no confirmó la actualización (" + (data?.length || 0) +
-        " filas). Revisa las políticas RLS UPDATE/SELECT de registros_turnos " +
-        "y que el turno siga abierto. No se ha confirmado el cierre."
-      );
+    if (String(data) !== String(idTurno)) {
+      throw new Error("Supabase no confirmó el cierre. Actualiza el historial antes de reintentar.");
     }
-
+  } catch (e) {
+    alert("Error al cerrar el turno: " + e.message); return;
+  }
+  try {
     await syncDataFromSupabase();
     alert("¡Salida forzada con éxito!");
   } catch (e) {
-    alert("Error al cerrar el turno: " + e.message);
+    alert("El turno se cerró correctamente, pero no se pudo actualizar el historial. Recarga la página.");
   }
 }
 
