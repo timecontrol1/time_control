@@ -3438,6 +3438,63 @@ loadAdminData = function() {
 };
 
 // Configuración agrupada y auditoría: no cambia la lógica de los reportes.
+
+function tcAbrirConfigNomina(){
+  if(currentUser?.rol!=='admin') return;
+  const modal=document.getElementById('tc-modal-config-nomina');
+  if(!modal) return alert('Actualiza la página para cargar la configuración de nómina.');
+  modal.classList.remove('hidden');
+  modal.style.display='flex';
+  document.getElementById('tc-nomina-clave').value='';
+  document.getElementById('tc-nomina-status').textContent=
+    'Los envíos se activan al guardar tu número personal. No se enviarán reportes retroactivos.';
+}
+function tcCerrarConfigNomina(){
+  const modal=document.getElementById('tc-modal-config-nomina');
+  if(modal){modal.classList.add('hidden');modal.style.display='none';}
+  const clave=document.getElementById('tc-nomina-clave');
+  if(clave)clave.value='';
+}
+async function tcGuardarConfigNomina(activado){
+  if(currentUser?.rol!=='admin'||!supabaseClient)return;
+  const telefono=(document.getElementById('tc-nomina-telefono')?.value||'').trim();
+  const clave=document.getElementById('tc-nomina-clave')?.value||'';
+  const estado=document.getElementById('tc-nomina-status');
+  if(!/^\d{6}$/.test(clave)){
+    estado.textContent='Introduce la clave especial de administración de seis dígitos.';
+    return;
+  }
+  const limpio=telefono.replace(/[\s+()-]/g,'');
+  if(activado&&!/^\d{10,15}$/.test(limpio)){
+    estado.textContent='Ingresa tu número de WhatsApp con código de país (ej.: 584121234567).';
+    return;
+  }
+  const activar=document.getElementById('tc-nomina-activar');
+  const desactivar=document.getElementById('tc-nomina-desactivar');
+  if(activar)activar.disabled=true;
+  if(desactivar)desactivar.disabled=true;
+  estado.textContent='Guardando configuración privada en Supabase…';
+  try{
+    const {data,error}=await supabaseClient.rpc('tc_nomina_configurar',{
+      p_usuario:currentUser.usuario,
+      p_clave:clave,
+      p_telefono:activado?limpio:'',
+      p_activado:Boolean(activado)
+    });
+    if(error)throw error;
+    estado.textContent=activado?
+      '✓ Nómina automática activada. '+String(data||'')+
+      '. Los mensajes irán únicamente a tu número personal al cierre de cada período.':
+      '✓ Envíos automáticos de nómina desactivados.';
+    document.getElementById('tc-nomina-clave').value='';
+    if(!activado)document.getElementById('tc-nomina-telefono').value='';
+  }catch(error){
+    estado.textContent='No se pudo guardar: '+String(error?.message||'Error de conexión');
+  }finally{
+    if(activar)activar.disabled=false;
+    if(desactivar)desactivar.disabled=false;
+  }
+}
 function tcToggleConfig() {
   if (currentUser?.rol !== 'admin') return;
   const menu=document.getElementById('tc-config-menu');
